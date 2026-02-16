@@ -1,0 +1,298 @@
+/* Player Wrapper */
+.player-wrapper {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+.channel-title {
+    text-align: center;
+    margin-bottom: 1.5rem;
+    color: var(--light);
+    font-size: 1.8rem;
+}
+
+/* Shaka Player Custom Styles */
+.player-container {
+    width: 100%;
+    margin: 1rem auto;
+    background: #000;
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    position: relative;
+}
+
+#video-container {
+    width: 100%;
+    height: 0;
+    padding-bottom: 56.25%; /* 16:9 aspect ratio */
+    position: relative;
+}
+
+#video-player {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #000;
+    outline: none;
+}
+
+/* Loading Overlay */
+.loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.8);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+}
+
+.loading-content {
+    text-align: center;
+    color: white;
+}
+
+.loading-spinner {
+    display: inline-block;
+    width: 50px;
+    height: 50px;
+    border: 4px solid rgba(255,255,255,0.3);
+    border-radius: 50%;
+    border-top-color: var(--primary);
+    animation: spin 1s ease-in-out infinite;
+    margin-bottom: 1rem;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Custom Shaka Player Theme */
+.shaka-video-container {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.shaka-controls-container {
+    background: linear-gradient(transparent, rgba(0,0,0,0.8)) !important;
+}
+
+.shaka-controls-button {
+    color: var(--primary) !important;
+    transition: all 0.3s !important;
+}
+
+.shaka-controls-button:hover {
+    color: var(--accent) !important;
+    transform: scale(1.1);
+}
+
+.shaka-seek-bar {
+    color: var(--primary) !important;
+}
+
+.shaka-volume-bar {
+    color: var(--success) !important;
+}
+
+.shaka-current-time {
+    color: var(--light) !important;
+}
+
+.shaka-resolution-button {
+    background: rgba(52, 152, 219, 0.2) !important;
+    border-radius: 20px !important;
+}
+
+/* Player Info */
+.player-info {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 1.5rem;
+    border-radius: 10px;
+    margin: 1rem 0;
+    border-left: 4px solid var(--primary);
+}
+
+.player-info h3 {
+    color: var(--primary);
+    margin-bottom: 1rem;
+    font-size: 1.3rem;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+}
+
+.info-item {
+    display: flex;
+    flex-direction: column;
+    padding: 0.5rem 0;
+}
+
+.info-label {
+    font-size: 0.9rem;
+    color: var(--gray);
+    margin-bottom: 0.3rem;
+}
+
+.info-value {
+    font-weight: bold;
+    color: var(--light);
+    font-size: 1rem;
+}
+
+/* Quality Selector */
+.quality-selector {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 10;
+}
+
+.quality-btn {
+    background: rgba(0,0,0,0.7);
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.quality-btn:hover {
+    background: var(--primary);
+}
+
+/* Error States */
+.player-error {
+    text-align: center;
+    padding: 2rem;
+    color: var(--danger);
+    background: rgba(231, 76, 60, 0.1);
+    border-radius: 10px;
+    margin: 1rem 0;
+}
+
+.status-error {
+    color: var(--danger) !important;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .player-wrapper {
+        padding: 0.5rem;
+        margin: 0.5rem;
+    }
+    
+    .channel-title {
+        font-size: 1.4rem;
+        margin-bottom: 1rem;
+    }
+    
+    .player-container {
+        margin: 0.5rem 0;
+        border-radius: 10px;
+    }
+    
+    .player-info {
+        padding: 1rem;
+        margin: 0.5rem 0;
+    }
+    
+    .info-grid {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+    }
+    
+    .info-label {
+        font-size: 0.8rem;
+    }
+    
+    .info-value {
+        font-size: 0.9rem;
+    }
+    
+    /* Mobile-specific Shaka controls */
+    .shaka-controls-container {
+        padding: 10px !important;
+    }
+    
+    .shaka-controls-button-panel {
+        flex-wrap: wrap !important;
+    }
+    
+    .shaka-spacer {
+        flex: 1 !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .player-wrapper {
+        padding: 0.25rem;
+    }
+    
+    .channel-title {
+        font-size: 1.2rem;
+    }
+    
+    .player-info {
+        padding: 0.75rem;
+    }
+    
+    .loading-spinner {
+        width: 40px;
+        height: 40px;
+    }
+    
+    .mobile-controls {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .mobile-controls .cta-button {
+        width: 100%;
+        text-align: center;
+    }
+}
+
+/* High DPI Screens */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    .loading-spinner {
+        border-width: 3px;
+    }
+}
+
+/* Print Styles */
+@media print {
+    .player-container,
+    .mobile-controls {
+        display: none !important;
+    }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+    .loading-spinner {
+        animation: none;
+    }
+    
+    .shaka-controls-button {
+        transition: none !important;
+    }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .player-info {
+        background: rgba(0, 0, 0, 0.3);
+    }
+}

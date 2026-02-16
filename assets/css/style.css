@@ -1,0 +1,335 @@
+/* --- Root Variables & Theme --- */
+:root {
+    --primary: #3498db;
+    --primary-glow: rgba(52, 152, 219, 0.3);
+    --secondary: #2c3e50;
+    --accent: #e74c3c;
+    --success: #2ecc71;
+    --warning: #f39c12;
+    --dark: #0c0c0c;
+    --light: #ecf0f1;
+    --gray: #95a5a6;
+    --border: rgba(255, 255, 255, 0.1);
+    --glass: rgba(255, 255, 255, 0.05);
+    --header-height: 80px;
+}
+
+/* --- Base Reset --- */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.6;
+    background: radial-gradient(circle at top right, #1a1a2e, #0c0c0c);
+    color: var(--light);
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+/* --- Layout Structure --- */
+.layout {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 30px;
+    padding: calc(var(--header-height) + 30px) 30px 40px;
+    max-width: 1800px;
+    margin: 0 auto;
+}
+
+.sidebar {
+    position: sticky;
+    top: calc(var(--header-height) + 20px);
+    height: calc(100vh - var(--header-height) - 60px);
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 25px;
+    overflow-y: auto;
+}
+
+.content {
+    min-width: 0; /* Prevents flex items from breaking grid */
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+}
+
+/* --- Header & Navigation --- */
+.header {
+    background: rgba(44, 62, 80, 0.95);
+    backdrop-filter: blur(10px);
+    position: fixed;
+    width: 100%;
+    top: 0;
+    z-index: 1000;
+    border-bottom: 1px solid var(--border);
+    height: var(--header-height);
+}
+
+.nav-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 100%;
+    padding: 0 2rem;
+}
+
+.nav-logo a {
+    color: white;
+    text-decoration: none;
+    font-size: 1.8rem;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.nav-menu {
+    display: flex;
+    list-style: none;
+    gap: 2rem;
+}
+
+.nav-link {
+    color: white;
+    text-decoration: none;
+    font-weight: 500;
+    padding: 8px 16px;
+    border-radius: 25px;
+    transition: 0.3s;
+}
+
+.nav-link:hover {
+    background: rgba(52, 152, 219, 0.2);
+    color: var(--primary);
+}
+
+/* --- Content Sections & Titles --- */
+.section {
+    width: 100%;
+    clear: both;
+}
+
+.section-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.section-title::before {
+    content: '';
+    width: 4px;
+    height: 24px;
+    background: var(--primary);
+    border-radius: 4px;
+}
+
+/* --- Carousel & Hero --- */
+.carousel {
+    width: 100%;
+    min-height: 380px;
+    border-radius: 20px;
+    overflow: hidden;
+    position: relative;
+    background: #000;
+}
+
+.slide {
+    display: none;
+    height: 100%;
+    width: 100%;
+}
+
+.slide.active {
+    display: block;
+    animation: fadeIn 0.5s ease;
+}
+
+.slide-bg {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    filter: brightness(0.5);
+}
+
+.slide-overlay {
+    position: relative;
+    padding: 60px;
+    z-index: 2;
+    max-width: 600px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+/* --- Rows & Poster Cards --- */
+.row-shell {
+    display: flex;
+    gap: 20px;
+    overflow-x: auto;
+    padding: 10px 5px 25px;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary) transparent;
+}
+
+.row-shell::-webkit-scrollbar {
+    height: 6px;
+}
+
+.row-shell::-webkit-scrollbar-thumb {
+    background: var(--primary);
+    border-radius: 10px;
+}
+
+.poster-card {
+    position: relative;
+    flex: 0 0 200px;
+    border-radius: 14px;
+    overflow: hidden;
+    background: var(--glass);
+    border: 1px solid var(--border);
+    scroll-snap-align: start;
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.poster-card:hover {
+    transform: translateY(-8px) scale(1.02);
+    border-color: var(--primary);
+    box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+}
+
+.poster-card img {
+    width: 100%;
+    height: 280px;
+    object-fit: cover;
+    display: block;
+}
+
+.poster-meta {
+    padding: 12px;
+    background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);
+}
+
+.poster-title {
+    font-weight: 700;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* --- Sidebar Category List --- */
+.category-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.category-list li a {
+    color: var(--gray);
+    text-decoration: none;
+    font-weight: 600;
+    padding: 12px 15px;
+    border-radius: 10px;
+    display: block;
+    transition: 0.2s;
+}
+
+.category-list li a:hover {
+    background: rgba(52, 152, 219, 0.1);
+    color: var(--primary);
+    padding-left: 20px;
+}
+
+/* --- Skeleton Loading --- */
+.skeleton-card {
+    width: 200px;
+    height: 280px;
+    border-radius: 14px;
+    background: linear-gradient(90deg, #1a1a1a 25%, #2a2a2a 50%, #1a1a1a 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* --- Buttons --- */
+.button-pill, .cta-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 12px 28px;
+    background: linear-gradient(45deg, var(--primary), var(--accent));
+    color: white;
+    text-decoration: none;
+    border-radius: 50px;
+    font-weight: bold;
+    border: none;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.button-pill:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px var(--primary-glow);
+}
+
+/* --- Responsive Design --- */
+@media (max-width: 1024px) {
+    .layout {
+        grid-template-columns: 1fr;
+        padding: 100px 20px 20px;
+    }
+
+    .sidebar {
+        position: static;
+        height: auto;
+        margin-bottom: 20px;
+    }
+}
+
+@media (max-width: 768px) {
+    .nav-menu {
+        position: fixed;
+        left: -100%;
+        top: var(--header-height);
+        flex-direction: column;
+        background: var(--secondary);
+        width: 100%;
+        text-align: center;
+        transition: 0.3s;
+        padding: 2rem 0;
+    }
+
+    .nav-menu.active {
+        left: 0;
+    }
+
+    .nav-toggle {
+        display: flex;
+    }
+
+    .poster-card {
+        flex: 0 0 160px;
+    }
+}
