@@ -4,11 +4,23 @@
  * Handles all incoming requests and routes to appropriate pages
  */
 
-include 'includes/config.php';
-include 'includes/functions.php';
+require_once __DIR__ . '/includes/config.php';
+require_once __DIR__ . '/includes/functions.php';
+
+function isCustomerAuthenticated(): bool
+{
+    return isset($_SESSION['customer_id']) && is_numeric($_SESSION['customer_id']);
+}
+
+// Customer logout
+if (isset($_GET['logout']) && isCustomerAuthenticated()) {
+    destroy_session_secure();
+    header('Location: /watch/');
+    exit;
+}
 
 // Check for maintenance mode
-if (getSetting($pdo, 'maintenance_mode', '0') === '1' && !strpos($_SERVER['REQUEST_URI'], '/admin')) {
+if (getSetting($pdo, 'maintenance_mode', '0') === '1' && strpos($_SERVER['REQUEST_URI'], '/admin') === false) {
     header('HTTP/1.1 503 Service Unavailable');
     include 'pages/maintenance.php';
     exit;
@@ -31,53 +43,57 @@ $clean_path = preg_replace('/\.php$/', '', $path);
 switch ($clean_path) {
     case '':
     case 'index':
+        if (!isCustomerAuthenticated()) {
+            header('Location: /watch/');
+            exit;
+        }
         include 'pages/index.php';
         break;
-        
+
     case 'channels':
         include 'pages/channels.php';
         break;
-        
+
     case 'categories':
         include 'pages/categories.php';
         break;
-        
+
     case 'player':
         include 'pages/player.php';
         break;
-        
+
     case 'watch':
         include 'watch/index.php';
         break;
-        
+
     case 'movies':
         include 'movies.php';
         break;
-        
+
     case 'series-list':
         include 'series-list.php';
         break;
-        
+
     case 'live-tv':
         include 'live-tv.php';
         break;
-        
+
     case 'movie':
         include 'movie.php';
         break;
-        
+
     case 'series':
         include 'series.php';
         break;
-        
+
     case 'my-list':
         include 'my-list.php';
         break;
-        
+
     case 'sitemap.xml':
         include 'pages/sitemap.php';
         break;
-    
+
     // API routes
     case 'api/get_channels':
         include 'api/get_channels.php';
@@ -86,7 +102,7 @@ switch ($clean_path) {
     case 'api/track-ad':
         include 'api/track-ad.php';
         break;
-        
+
     case 'api/update_views':
         include 'api/update_views.php';
         break;
@@ -94,57 +110,57 @@ switch ($clean_path) {
     case 'api/video-ads':
         include 'api/video-ads.php';
         break;
-        
+
     case 'api/watch_history':
         include 'api/watch_history.php';
         break;
-        
+
     case 'api/my_list':
         include 'api/my_list.php';
         break;
-        
+
     case 'api/movie':
         include 'api/movie.php';
         break;
-        
+
     case 'api/series':
         include 'api/series.php';
         break;
-        
+
     // Admin routes
     case 'admin':
         include 'admin/index.php';
         break;
-        
+
     case 'admin/login':
         include 'admin/login.php';
         break;
-        
+
     case 'admin/channels':
         include 'admin/channels.php';
         break;
-        
+
     case 'admin/ads':
         include 'admin/ads.php';
         break;
 
-    case 'admin/video-ads':  
+    case 'admin/video-ads':
         include 'admin/video-ads.php';
         break;
-        
+
     case 'admin/settings':
         include 'admin/settings.php';
         break;
-        
+
     case 'admin/seo':
         include 'admin/seo.php';
         break;
-        
+
     case 'admin/logout':
         include 'includes/auth.php';
         adminLogout();
         break;
-        
+
     // Static files - allow direct access to assets
     default:
         if (preg_match('/\.(css|js|png|jpg|jpeg|gif|ico|txt)$/i', $path)) {
@@ -161,17 +177,17 @@ switch ($clean_path) {
                     'ico' => 'image/x-icon',
                     'txt' => 'text/plain'
                 ];
-                
+
                 $extension = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
                 if (isset($mime_types[$extension])) {
                     header('Content-Type: ' . $mime_types[$extension]);
                 }
-                
+
                 readfile($file_path);
                 exit;
             }
         }
-        
+
         // 404 for everything else
         http_response_code(404);
         include 'pages/404.php';

@@ -1,8 +1,8 @@
 <?php
 ini_set('log_errors', 'On');
 ini_set('error_log', '/dev/null');
-include '../includes/config.php';
-include '../includes/functions.php';
+require_once __DIR__ . '/../includes/config.php';
+require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/auth/check_auth.php';
 
 $site_name = getSetting($pdo, 'site_name', 'Premium IPTV');
@@ -17,7 +17,7 @@ $site_name = getSetting($pdo, 'site_name', 'Premium IPTV');
     <link rel="stylesheet" href="../assets/css/app.css?v=20250216">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
-<body>
+<body class="home-page">
 <?php include __DIR__ . '/partials/header.php'; ?>
 
     <div class="layout page-shell">
