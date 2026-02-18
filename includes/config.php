@@ -1,11 +1,26 @@
 <?php
 require_once __DIR__ . '/auth/session.php';
 
-// Database Configuration
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'learningscriptin_stream');
-define('DB_USER', 'root');
-define('DB_PASS', '');
+// Database Configuration (switches based on environment)
+$hostName = $_SERVER['HTTP_HOST'] ?? '';
+$isLocal = in_array($hostName, ['localhost', '127.0.0.1'], true) || str_contains($hostName, '.local') || PHP_SAPI === 'cli';
+
+$dbConfig = $isLocal ? [
+    'host' => 'localhost',
+    'name' => 'learningscriptin_stream',
+    'user' => 'root',
+    'pass' => ''
+ ] : [
+    'host' => 'localhost',
+    'name' => 'sanjay_iptv',
+    'user' => 'sanjay_iptv',
+    'pass' => '2n_oMJdrTxbj!KiN'
+ ];
+
+define('DB_HOST', $dbConfig['host']);
+define('DB_NAME', $dbConfig['name']);
+define('DB_USER', $dbConfig['user']);
+define('DB_PASS', $dbConfig['pass']);
 
 // Site Configuration
 $site_config = [
