@@ -225,6 +225,51 @@ document.addEventListener('DOMContentLoaded', function() {
             lastScrollTop = scrollTop;
         });
     }
+
+    // Mobile sidebar drawer
+    (function () {
+        const toggleBtn = document.getElementById('sidebarToggle');
+        const closeBtn = document.getElementById('sidebarClose');
+        const overlay = document.getElementById('mobileSidebarOverlay');
+        const sidebar = document.getElementById('mobileSidebar');
+
+        if (!toggleBtn || !overlay || !sidebar) return;
+
+        const openSidebar = () => {
+            document.body.classList.add('sidebar-open');
+            overlay.hidden = false;
+            toggleBtn.setAttribute('aria-expanded', 'true');
+            sidebar.setAttribute('aria-hidden', 'false');
+        };
+
+        const closeSidebar = () => {
+            document.body.classList.remove('sidebar-open');
+            overlay.hidden = true;
+            toggleBtn.setAttribute('aria-expanded', 'false');
+            sidebar.setAttribute('aria-hidden', 'true');
+        };
+
+        toggleBtn.addEventListener('click', () => {
+            if (document.body.classList.contains('sidebar-open')) {
+                closeSidebar();
+            } else {
+                openSidebar();
+            }
+        });
+
+        overlay.addEventListener('click', closeSidebar);
+        if (closeBtn) closeBtn.addEventListener('click', closeSidebar);
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeSidebar();
+        });
+
+        // Close drawer when clicking a category link (better UX)
+        sidebar.addEventListener('click', (e) => {
+            const a = e.target.closest('a');
+            if (a && window.matchMedia('(max-width: 900px)').matches) closeSidebar();
+        });
+    })();
 });
 
 // Utility functions

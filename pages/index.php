@@ -13,17 +13,28 @@ $site_name = getSetting($pdo, 'site_name', 'Premium IPTV');
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo $site_name; ?> - Home</title>
-    <link rel="stylesheet" href="../assets/css/style.css?v=20250216">
-    <link rel="stylesheet" href="../assets/css/app.css?v=20250216">
+    <link rel="stylesheet" href="../assets/css/style.css?v=20260218">
+    <link rel="stylesheet" href="../assets/css/app.css?v=20260218">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body class="home-page">
 <?php include __DIR__ . '/partials/header.php'; ?>
+    <div id="mobileSidebarOverlay" class="sidebar-overlay" hidden></div>
 
     <div class="layout page-shell">
-        <aside class="sidebar glass-card">
-            <h3 style="margin-top:0;">Browse</h3>
-            <ul id="categoriesList" class="category-list"></ul>
+        <aside id="mobileSidebar" class="sidebar glass-card">
+            <button class="sidebar-close" id="sidebarClose" aria-label="Close menu">
+                <i class="fa-solid fa-xmark"></i> Close
+            </button>
+            <h3 style="margin-top:0; padding-left: 10px;">Browse</h3>
+            <ul id="categoriesList" class="category-list">
+                <li><a href="#genre-action" class="nav-link">Action</a></li>
+                <li><a href="#genre-drama" class="nav-link">Drama</a></li>
+                <li><a href="#genre-comedy" class="nav-link">Comedy</a></li>
+                <li><a href="#genre-thriller" class="nav-link">Thriller</a></li>
+                <li><a href="#genre-kids" class="nav-link">Kids</a></li>
+                <li><a href="#genre-documentary" class="nav-link">Documentary</a></li>
+            </ul>
         </aside>
 
         <main class="content">
@@ -45,7 +56,7 @@ $site_name = getSetting($pdo, 'site_name', 'Premium IPTV');
         </main>
     </div>
 
-    <script src="../assets/js/main.js?v=20250216"></script>
+    <script src="../assets/js/main.js?v=20260218"></script>
     <script src="../assets/js/home.js?v=20250216"></script>
 </body>
 </html>

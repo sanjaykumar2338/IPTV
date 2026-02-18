@@ -11,7 +11,7 @@ $flash = $_SESSION['reseller_flash'] ?? null;
 unset($_SESSION['reseller_flash']);
 
 // Fetch customers for this reseller
-$customerStmt = $pdo->prepare("SELECT id, phone_number, subscription_status, subscription_expiry_date, uuid FROM customers WHERE reseller_id = ? ORDER BY created_at DESC");
+$customerStmt = $pdo->prepare("SELECT id, full_name, phone, phone_number, subscription_status, subscription_expiry_date, uuid FROM customers WHERE reseller_id = ? ORDER BY created_at DESC");
 $customerStmt->execute([$_SESSION['reseller_id']]);
 $customers = $customerStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -36,8 +36,8 @@ $baseUrl = rtrim($scheme . $host, '/');
         h2 {margin: 0 0 12px;}
         .card {background: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 20px; margin-bottom: 24px; box-shadow: 0 8px 30px rgba(0,0,0,0.28);} 
         label {display:block; margin-bottom: 8px; font-size: 14px; color: #cbd5e1;}
-        input[type="tel"] {width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid #1f2937; background: #0b1224; color: #e5e7eb; font-size: 15px;} 
-        input[type="tel"]:focus {outline: 2px solid #6366f1;}
+        input[type="tel"], input[type="text"] {width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid #1f2937; background: #0b1224; color: #e5e7eb; font-size: 15px;} 
+        input[type="tel"]:focus, input[type="text"]:focus {outline: 2px solid #6366f1;}
         .btn {display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border: none; border-radius: 10px; cursor: pointer; font-weight: 600;}
         .btn-primary {background: #6366f1; color: #fff;} .btn-primary:hover {background: #4f46e5;}
         .btn-ghost {background: #111827; border: 1px solid #1f2937; color: #e5e7eb;}
@@ -86,10 +86,12 @@ $baseUrl = rtrim($scheme . $host, '/');
     <div class="grid">
         <div class="card">
             <h2>Create Customer</h2>
-            <p style="color:#9ca3af; margin-top:0;">Add a phone number; we’ll generate a unique watch link.</p>
+            <p style="color:#9ca3af; margin-top:0;">Add customer details; we’ll generate a unique watch link.</p>
             <form method="POST" action="/reseller/actions/create_customer.php" autocomplete="off" novalidate>
-                <label for="phone_number">Phone Number</label>
-                <input type="tel" id="phone_number" name="phone_number" placeholder="+12025550123" required>
+                <label for="full_name">Full Name</label>
+                <input type="text" id="full_name" name="full_name" placeholder="John Doe" required>
+                <label for="phone" style="margin-top:12px;">Phone Number</label>
+                <input type="tel" id="phone" name="phone" placeholder="+12025550123" required>
                 <div style="margin-top:14px;">
                     <button class="btn btn-primary" type="submit"><i class="fas fa-plus-circle"></i> Create Customer</button>
                 </div>
@@ -113,7 +115,8 @@ $baseUrl = rtrim($scheme . $host, '/');
         <table>
             <thead>
                 <tr>
-                    <th>Phone Number</th>
+                    <th>Full Name</th>
+                    <th>Phone</th>
                     <th>Status</th>
                     <th>Expiry</th>
                     <th>Actions</th>
@@ -122,7 +125,8 @@ $baseUrl = rtrim($scheme . $host, '/');
             <tbody>
                 <?php foreach ($customers as $customer): ?>
                     <tr>
-                        <td><?php echo sanitize($customer['phone_number']); ?></td>
+                        <td><?php echo sanitize($customer['full_name']); ?></td>
+                        <td><?php echo sanitize($customer['phone'] ?: $customer['phone_number']); ?></td>
                         <td>
                             <?php
                                 $statusClass = 'status-' . $customer['subscription_status'];

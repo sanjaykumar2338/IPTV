@@ -98,6 +98,8 @@ function createTables($pdo) {
 
         "CREATE TABLE IF NOT EXISTS customers (
             id INT AUTO_INCREMENT PRIMARY KEY,
+            full_name VARCHAR(150) NOT NULL DEFAULT '',
+            phone VARCHAR(20) NOT NULL UNIQUE,
             phone_number VARCHAR(50) NOT NULL UNIQUE,
             uuid VARCHAR(64) NOT NULL UNIQUE,
             pin_hash VARCHAR(255) NOT NULL,

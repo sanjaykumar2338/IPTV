@@ -19,7 +19,10 @@ if (!isset($site_name)) {
                 <li class="nav-item"><a href="/series-list.php" class="nav-link">Series</a></li>
                 <li class="nav-item"><a href="/my-list.php" class="nav-link">My List</a></li>
             </ul>
-            <div style="display:flex; align-items:center; gap:14px;">
+            <div class="nav-actions" style="display:flex; align-items:center; gap:14px;">
+                <button class="sidebar-toggle" id="sidebarToggle" aria-label="Open menu" aria-expanded="false" aria-controls="mobileSidebar">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
                 <div class="search" style="position:relative;">
                     <input type="text" id="globalSearch" placeholder="Search..." style="padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.06); color:white;">
                     <div id="searchSuggestions" style="position:absolute; top:42px; right:0; left:0; background:rgba(8,10,20,0.95); border:1px solid rgba(255,255,255,0.08); border-radius:10px; display:none; z-index:1500;"></div>
