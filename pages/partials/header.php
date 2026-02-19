@@ -56,7 +56,7 @@ if (!isset($site_name)) {
         </ul>
     </div>
     <div class="mobile-menu-section">
-        <details class="mobile-menu-accordion" open>
+        <details class="mobile-menu-accordion">
             <summary>Categories</summary>
             <ul id="mobileCategoriesList" class="mobile-menu-list"></ul>
         </details>

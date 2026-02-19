@@ -230,9 +230,9 @@ body {
 .mobile-menu-list a:hover { background: rgba(99,102,241,0.18); }
 .mobile-menu-accordion summary { cursor: pointer; padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,0.05); color: #e5e7eb; list-style: none; }
 .mobile-menu-accordion summary::-webkit-details-marker { display: none; }
-.mobile-menu-accordion summary::after { content: "\\f107"; font-family: \"Font Awesome 6 Free\"; font-weight: 900; margin-left: auto; transition: transform 0.2s ease; }
+.mobile-menu-accordion summary::after { content: "\f105"; font-family: "Font Awesome 6 Free"; font-weight: 900; margin-left: auto; transition: transform 0.2s ease; display: inline-block; }
 .mobile-menu-accordion[open] summary { background: rgba(255,255,255,0.08); }
-.mobile-menu-accordion[open] summary::after { transform: rotate(180deg); }
+.mobile-menu-accordion[open] summary::after { transform: rotate(90deg); }
 .mobile-menu-accordion ul { margin-top: 10px; }
 
 /* Mobile sidebar drawer */
