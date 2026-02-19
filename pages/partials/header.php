@@ -46,7 +46,6 @@ if (!isset($site_name)) {
         <button id="mobileMenuClose" aria-label="Close menu"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="mobile-menu-section">
-        <h4>Menu</h4>
         <ul class="mobile-menu-list">
             <li><a href="/index.php">Home</a></li>
             <li><a href="/live-tv.php">Live TV</a></li>
