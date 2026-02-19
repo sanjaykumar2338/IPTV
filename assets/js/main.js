@@ -226,48 +226,65 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Mobile sidebar drawer
+    // Mobile menu drawer (nav + categories)
     (function () {
-        const toggleBtn = document.getElementById('sidebarToggle');
-        const closeBtn = document.getElementById('sidebarClose');
-        const overlay = document.getElementById('mobileSidebarOverlay');
-        const sidebar = document.getElementById('mobileSidebar');
+        const toggleBtn = document.getElementById('mobileMenuToggle');
+        const closeBtn = document.getElementById('mobileMenuClose');
+        const overlay = document.getElementById('mobileMenuOverlay');
+        const menu = document.getElementById('mobileMenu');
+        const categoriesSource = document.getElementById('categoriesList');
+        const categoriesDest = document.getElementById('mobileCategoriesList');
 
-        if (!toggleBtn || !overlay || !sidebar) return;
+        if (!toggleBtn || !overlay || !menu) return;
 
-        const openSidebar = () => {
-            document.body.classList.add('sidebar-open');
+        const openMenu = () => {
+            document.body.classList.add('menu-open');
             overlay.hidden = false;
+            menu.setAttribute('aria-hidden', 'false');
             toggleBtn.setAttribute('aria-expanded', 'true');
-            sidebar.setAttribute('aria-hidden', 'false');
         };
 
-        const closeSidebar = () => {
-            document.body.classList.remove('sidebar-open');
+        const closeMenu = () => {
+            document.body.classList.remove('menu-open');
             overlay.hidden = true;
+            menu.setAttribute('aria-hidden', 'true');
             toggleBtn.setAttribute('aria-expanded', 'false');
-            sidebar.setAttribute('aria-hidden', 'true');
         };
 
         toggleBtn.addEventListener('click', () => {
-            if (document.body.classList.contains('sidebar-open')) {
-                closeSidebar();
-            } else {
-                openSidebar();
-            }
+            if (document.body.classList.contains('menu-open')) closeMenu();
+            else openMenu();
         });
 
-        overlay.addEventListener('click', closeSidebar);
-        if (closeBtn) closeBtn.addEventListener('click', closeSidebar);
+        overlay.addEventListener('click', closeMenu);
+        if (closeBtn) closeBtn.addEventListener('click', closeMenu);
 
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') closeSidebar();
+            if (e.key === 'Escape') closeMenu();
         });
 
-        // Close drawer when clicking a category link (better UX)
-        sidebar.addEventListener('click', (e) => {
-            const a = e.target.closest('a');
-            if (a && window.matchMedia('(max-width: 900px)').matches) closeSidebar();
+        const syncCategories = () => {
+            if (!categoriesSource || !categoriesDest) return false;
+            if (!categoriesSource.children.length) return false;
+            categoriesDest.innerHTML = categoriesSource.innerHTML;
+            categoriesDest.querySelectorAll('a').forEach(a => {
+                a.addEventListener('click', closeMenu);
+            });
+            return true;
+        };
+
+        // Try immediately; if empty, watch for async population
+        if (!syncCategories() && categoriesSource && categoriesDest) {
+            const observer = new MutationObserver(() => {
+                if (syncCategories()) observer.disconnect();
+            });
+            observer.observe(categoriesSource, { childList: true });
+        }
+
+        // Close on any menu link click
+        menu.addEventListener('click', (e) => {
+            const link = e.target.closest('a');
+            if (link) closeMenu();
         });
     })();
 });

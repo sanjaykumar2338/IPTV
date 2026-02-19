@@ -20,7 +20,7 @@ if (!isset($site_name)) {
                 <li class="nav-item"><a href="/my-list.php" class="nav-link">My List</a></li>
             </ul>
             <div class="nav-actions" style="display:flex; align-items:center; gap:14px;">
-                <button class="sidebar-toggle" id="sidebarToggle" aria-label="Open menu" aria-expanded="false" aria-controls="mobileSidebar">
+                <button class="sidebar-toggle" id="mobileMenuToggle" aria-label="Open menu" aria-expanded="false" aria-controls="mobileMenu">
                     <i class="fa-solid fa-bars"></i>
                 </button>
                 <div class="search" style="position:relative;">
@@ -39,6 +39,29 @@ if (!isset($site_name)) {
         </div>
     </nav>
 </header>
+<div id="mobileMenuOverlay" class="mobile-menu-overlay" hidden></div>
+<aside id="mobileMenu" class="mobile-menu" aria-hidden="true">
+    <div class="mobile-menu-header">
+        <span>Menu</span>
+        <button id="mobileMenuClose" aria-label="Close menu"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="mobile-menu-section">
+        <h4>Menu</h4>
+        <ul class="mobile-menu-list">
+            <li><a href="/index.php">Home</a></li>
+            <li><a href="/live-tv.php">Live TV</a></li>
+            <li><a href="/movies.php">Movies</a></li>
+            <li><a href="/series-list.php">Series</a></li>
+            <li><a href="/my-list.php">My List</a></li>
+        </ul>
+    </div>
+    <div class="mobile-menu-section">
+        <details class="mobile-menu-accordion" open>
+            <summary>Categories</summary>
+            <ul id="mobileCategoriesList" class="mobile-menu-list"></ul>
+        </details>
+    </div>
+</aside>
 <script>
     const profileBtn = document.getElementById('profileBtn');
     const profileMenu = document.getElementById('profileMenu');

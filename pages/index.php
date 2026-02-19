@@ -13,8 +13,8 @@ $site_name = getSetting($pdo, 'site_name', 'Premium IPTV');
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo $site_name; ?> - Home</title>
-    <link rel="stylesheet" href="../assets/css/style.css?v=20260218">
-    <link rel="stylesheet" href="../assets/css/app.css?v=20260218">
+    <link rel="stylesheet" href="../assets/css/style.css?v=20260219">
+    <link rel="stylesheet" href="../assets/css/app.css?v=20260219">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body class="home-page">
@@ -56,7 +56,7 @@ $site_name = getSetting($pdo, 'site_name', 'Premium IPTV');
         </main>
     </div>
 
-    <script src="../assets/js/main.js?v=20260218"></script>
+    <script src="../assets/js/main.js?v=20260219"></script>
     <script src="../assets/js/home.js?v=20250216"></script>
 </body>
 </html>
