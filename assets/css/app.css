@@ -518,11 +518,13 @@ body {
 }
 
 @media (max-width: 900px) {
-    .nav-container { padding: 0 14px; gap: 10px; }
+    .nav-container { padding: 0 14px; gap: 10px; flex-direction: column; align-items: stretch; }
+    .nav-left { width: 100%; justify-content: space-between; }
     .nav-logo a { font-size: 1.35rem; gap: 10px; }
     .nav-logo i { font-size: 1.4rem; }
-    .nav-actions { gap: 10px; }
-    .header .search input { width: 170px; padding: 9px 12px; }
+    .nav-actions { gap: 10px; width: 100%; justify-content: space-between; }
+    .header .search { flex: 1; }
+    .header .search input { width: 100%; padding: 9px 12px; }
 
     .nav-menu { display: none; }
     .mobile-menu-btn { display: inline-flex; }
