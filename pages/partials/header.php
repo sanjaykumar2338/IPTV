@@ -6,11 +6,14 @@ if (!isset($site_name)) {
 <header class="header" style="position:sticky; top:0; z-index:1200;">
     <nav class="navbar">
         <div class="nav-container" style="height:72px;">
-            <div class="nav-logo">
-                <a href="/index.php">
-                    <i class="fas fa-tv"></i>
-                    <?php echo $site_name; ?>
-                </a>
+            <div class="nav-left">
+                <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Open menu">☰</button>
+                <div class="nav-logo">
+                    <a href="/index.php">
+                        <i class="fas fa-tv"></i>
+                        <?php echo $site_name; ?>
+                    </a>
+                </div>
             </div>
             <ul class="nav-menu">
                 <li class="nav-item"><a href="/index.php" class="nav-link">Home</a></li>
@@ -20,9 +23,6 @@ if (!isset($site_name)) {
                 <li class="nav-item"><a href="/my-list.php" class="nav-link">My List</a></li>
             </ul>
             <div class="nav-actions" style="display:flex; align-items:center; gap:14px;">
-                <button class="sidebar-toggle" id="mobileMenuToggle" aria-label="Open menu" aria-expanded="false" aria-controls="mobileMenu">
-                    <i class="fa-solid fa-bars"></i>
-                </button>
                 <div class="search" style="position:relative;">
                     <input type="text" id="globalSearch" placeholder="Search..." style="padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.06); color:white;">
                     <div id="searchSuggestions" style="position:absolute; top:42px; right:0; left:0; background:rgba(8,10,20,0.95); border:1px solid rgba(255,255,255,0.08); border-radius:10px; display:none; z-index:1500;"></div>
@@ -39,14 +39,16 @@ if (!isset($site_name)) {
         </div>
     </nav>
 </header>
-<div id="mobileMenuOverlay" class="mobile-menu-overlay" hidden></div>
-<aside id="mobileMenu" class="mobile-menu" aria-hidden="true">
-    <div class="mobile-menu-header">
+
+<div class="drawer-overlay" id="drawerOverlay" hidden></div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+    <div class="drawer-header">
         <span>Menu</span>
-        <button id="mobileMenuClose" aria-label="Close menu"><i class="fa-solid fa-xmark"></i></button>
+        <button class="drawer-close" id="drawerClose" aria-label="Close menu"><i class="fa-solid fa-xmark"></i></button>
     </div>
-    <div class="mobile-menu-section">
-        <ul class="mobile-menu-list">
+    <div class="drawer-section">
+        <div class="drawer-section-title">Main Menu</div>
+        <ul class="drawer-menu">
             <li><a href="/index.php">Home</a></li>
             <li><a href="/live-tv.php">Live TV</a></li>
             <li><a href="/movies.php">Movies</a></li>
@@ -54,11 +56,14 @@ if (!isset($site_name)) {
             <li><a href="/my-list.php">My List</a></li>
         </ul>
     </div>
-    <div class="mobile-menu-section">
-        <details class="mobile-menu-accordion">
-            <summary>Categories</summary>
-            <ul id="mobileCategoriesList" class="mobile-menu-list"></ul>
-        </details>
+    <div class="drawer-section">
+        <button class="drawer-accordion" id="drawerCategoriesToggle" type="button">
+            <span>Categories</span>
+            <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+        </button>
+        <div class="drawer-accordion-body" id="drawerCategories">
+            <ul id="drawerCategoriesList" class="drawer-menu"></ul>
+        </div>
     </div>
 </aside>
 <script>

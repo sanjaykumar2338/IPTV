@@ -116,6 +116,7 @@ function renderRow(containerId, items, emptyLabel, emptyHint) {
 function renderGenreRows(genres) {
   const genresWrap = document.getElementById('genreRows');
   const catList = document.getElementById('categoriesList');
+  const drawerCatList = document.getElementById('drawerCategoriesList');
   if (!genresWrap) return;
 
   if (!Array.isArray(genres) || !genres.length) {
@@ -139,11 +140,13 @@ function renderGenreRows(genres) {
   }).join('');
 
   if (catList) {
-    catList.innerHTML = genres.map((row) => {
+    const markup = genres.map((row) => {
       const genre = escapeHtml(row.genre || 'More to Watch');
       const genreSlug = slugify(row.genre || 'more-to-watch');
       return `<li><a href="#genre-${genreSlug}">${genre}</a></li>`;
     }).join('');
+    catList.innerHTML = markup;
+    if (drawerCatList) drawerCatList.innerHTML = markup;
   }
 }
 

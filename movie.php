@@ -38,19 +38,21 @@ $site_name = getSetting($pdo, 'site_name', 'Premium IPTV');
     <link rel="stylesheet" href="assets/css/app.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
-<body>
+<body class="movie-page">
 <?php include __DIR__ . '/pages/partials/header.php'; ?>
-<main class="page-shell">
-    <div class="glass-card" style="display:grid; grid-template-columns: 320px 1fr; gap:20px; align-items:start;">
-        <div>
-            <img src="<?php echo sanitize($movie['poster_url']); ?>" alt="<?php echo sanitize($movie['title']); ?>" style="width:100%; border-radius:16px;">
+<main class="page-shell movie-page">
+    <div class="glass-card movie-layout">
+        <div class="movie-visual">
+            <div class="movie-poster">
+                <img src="<?php echo sanitize($movie['poster_url']); ?>" alt="<?php echo sanitize($movie['title']); ?>">
+            </div>
         </div>
-        <div>
+        <div class="movie-details">
             <div class="badge">Movie</div>
             <h1 style="margin:8px 0 6px; font-size:2.2rem;"><?php echo sanitize($movie['title']); ?></h1>
-            <p style="color:var(--muted); margin:6px 0 14px;">Year: <?php echo (int)$movie['year']; ?> • Genre: <?php echo sanitize($movie['genre']); ?> • Rating: <?php echo $movie['rating']; ?> • Duration: <?php echo (int)$movie['duration_minutes']; ?>m</p>
+            <p class="movie-meta" style="color:var(--muted); margin:6px 0 14px;">Year: <?php echo (int)$movie['year']; ?> • Genre: <?php echo sanitize($movie['genre']); ?> • Rating: <?php echo $movie['rating']; ?> • Duration: <?php echo (int)$movie['duration_minutes']; ?>m</p>
             <p style="line-height:1.6; margin-bottom:16px; color:var(--text); opacity:0.92;"><?php echo nl2br(sanitize($movie['synopsis'])); ?></p>
-            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <div class="movie-actions">
                 <a class="button-pill" href="/player.php?stream=<?php echo urlencode($movie['stream_url']); ?>&name=<?php echo urlencode($movie['title']); ?>&content_type=movie&content_id=<?php echo $movie['id']; ?>">
                     <i class="fas fa-play"></i> Watch Now
                 </a>

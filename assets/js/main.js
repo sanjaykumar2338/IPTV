@@ -226,54 +226,66 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Mobile menu drawer (nav + categories)
+    // Drawer (mobile nav + categories)
     (function () {
-        const toggleBtn = document.getElementById('mobileMenuToggle');
-        const closeBtn = document.getElementById('mobileMenuClose');
-        const overlay = document.getElementById('mobileMenuOverlay');
-        const menu = document.getElementById('mobileMenu');
+        const toggleBtn = document.getElementById('mobileMenuBtn');
+        const closeBtn = document.getElementById('drawerClose');
+        const overlay = document.getElementById('drawerOverlay');
+        const drawer = document.getElementById('drawer');
         const categoriesSource = document.getElementById('categoriesList');
-        const categoriesDest = document.getElementById('mobileCategoriesList');
+        const categoriesDest = document.getElementById('drawerCategoriesList');
+        const categoriesToggle = document.getElementById('drawerCategoriesToggle');
+        const categoriesBody = document.getElementById('drawerCategories');
 
-        if (!toggleBtn || !overlay || !menu) return;
+        if (!toggleBtn || !overlay || !drawer) return;
 
-        const openMenu = () => {
-            document.body.classList.add('menu-open');
+        const openDrawer = () => {
+            document.body.classList.add('drawer-open');
             overlay.hidden = false;
-            menu.setAttribute('aria-hidden', 'false');
+            overlay.style.display = 'block';
+            drawer.classList.add('open');
+            drawer.setAttribute('aria-hidden', 'false');
             toggleBtn.setAttribute('aria-expanded', 'true');
         };
 
-        const closeMenu = () => {
-            document.body.classList.remove('menu-open');
+        const closeDrawer = () => {
+            document.body.classList.remove('drawer-open');
             overlay.hidden = true;
-            menu.setAttribute('aria-hidden', 'true');
+            overlay.style.display = 'none';
+            drawer.classList.remove('open');
+            drawer.setAttribute('aria-hidden', 'true');
             toggleBtn.setAttribute('aria-expanded', 'false');
         };
 
         toggleBtn.addEventListener('click', () => {
-            if (document.body.classList.contains('menu-open')) closeMenu();
-            else openMenu();
+            if (document.body.classList.contains('drawer-open')) closeDrawer();
+            else openDrawer();
         });
 
-        overlay.addEventListener('click', closeMenu);
-        if (closeBtn) closeBtn.addEventListener('click', closeMenu);
+        overlay.addEventListener('click', closeDrawer);
+        if (closeBtn) closeBtn.addEventListener('click', closeDrawer);
 
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') closeMenu();
+            if (e.key === 'Escape') closeDrawer();
         });
+
+        if (categoriesToggle && categoriesBody) {
+            categoriesToggle.addEventListener('click', () => {
+                const isOpen = categoriesBody.classList.toggle('open');
+                categoriesToggle.classList.toggle('open', isOpen);
+            });
+        }
 
         const syncCategories = () => {
             if (!categoriesSource || !categoriesDest) return false;
             if (!categoriesSource.children.length) return false;
             categoriesDest.innerHTML = categoriesSource.innerHTML;
             categoriesDest.querySelectorAll('a').forEach(a => {
-                a.addEventListener('click', closeMenu);
+                a.addEventListener('click', closeDrawer);
             });
             return true;
         };
 
-        // Try immediately; if empty, watch for async population
         if (!syncCategories() && categoriesSource && categoriesDest) {
             const observer = new MutationObserver(() => {
                 if (syncCategories()) observer.disconnect();
@@ -281,10 +293,9 @@ document.addEventListener('DOMContentLoaded', function() {
             observer.observe(categoriesSource, { childList: true });
         }
 
-        // Close on any menu link click
-        menu.addEventListener('click', (e) => {
+        drawer.addEventListener('click', (e) => {
             const link = e.target.closest('a');
-            if (link) closeMenu();
+            if (link) closeDrawer();
         });
     })();
 });
