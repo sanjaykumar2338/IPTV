@@ -4,6 +4,7 @@ require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/auth/check_auth.php';
 
 $site_name = getSetting($pdo, 'site_name', 'Premium IPTV');
+$asset_version = time();
 
 // Fetch list
 $listMovies = $pdo->prepare("SELECT m.id, m.title, m.poster_url FROM my_list ml JOIN movies m ON ml.content_id = m.id WHERE ml.customer_id = ? AND ml.content_type = 'movie'");
@@ -20,8 +21,8 @@ $series = $listSeries->fetchAll(PDO::FETCH_ASSOC);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My List - <?php echo $site_name; ?></title>
-    <link rel="stylesheet" href="assets/css/style.css">
-    <link rel="stylesheet" href="assets/css/app.css">
+    <link rel="stylesheet" href="assets/css/style.css?v=<?php echo $asset_version; ?>">
+    <link rel="stylesheet" href="assets/css/app.css?v=<?php echo $asset_version; ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
@@ -75,7 +76,8 @@ $series = $listSeries->fetchAll(PDO::FETCH_ASSOC);
         <?php endif; ?>
     </div>
 </main>
-<script src="/assets/js/my-list.js"></script>
+<script src="/assets/js/main.js?v=<?php echo $asset_version; ?>"></script>
+<script src="/assets/js/my-list.js?v=<?php echo $asset_version; ?>"></script>
 <script>
 document.querySelectorAll('.remove-list').forEach(btn => {
     btn.addEventListener('click', async () => {

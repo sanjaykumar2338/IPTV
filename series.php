@@ -39,6 +39,7 @@ $inListStmt->execute([$_SESSION['customer_id'], $series['id']]);
 $inList = (bool)$inListStmt->fetchColumn();
 
 $site_name = getSetting($pdo, 'site_name', 'Premium IPTV');
+$asset_version = time();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -46,8 +47,8 @@ $site_name = getSetting($pdo, 'site_name', 'Premium IPTV');
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo sanitize($series['title']); ?> - <?php echo $site_name; ?></title>
-    <link rel="stylesheet" href="assets/css/style.css">
-    <link rel="stylesheet" href="assets/css/app.css">
+    <link rel="stylesheet" href="assets/css/style.css?v=<?php echo $asset_version; ?>">
+    <link rel="stylesheet" href="assets/css/app.css?v=<?php echo $asset_version; ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
@@ -111,6 +112,7 @@ $site_name = getSetting($pdo, 'site_name', 'Premium IPTV');
         </div>
     </section>
 </main>
-<script src="/assets/js/my-list.js"></script>
+<script src="/assets/js/main.js?v=<?php echo $asset_version; ?>"></script>
+<script src="/assets/js/my-list.js?v=<?php echo $asset_version; ?>"></script>
 </body>
 </html>
