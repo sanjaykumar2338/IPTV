@@ -28,7 +28,7 @@ if (!isset($site_name)) {
                     <div id="searchSuggestions" style="position:absolute; top:42px; right:0; left:0; background:rgba(8,10,20,0.95); border:1px solid rgba(255,255,255,0.08); border-radius:10px; display:none; z-index:1500;"></div>
                 </div>
                 <div class="profile" style="position:relative;">
-                    <button id="profileBtn" style="background:none; border:none; color:white; cursor:pointer; font-size:18px;"><i class="fas fa-user-circle"></i></button>
+                    <button id="profileBtn" class="profile-btn" aria-label="Profile"><i class="fa-regular fa-circle-user"></i></button>
                     <div id="profileMenu" style="display:none; position:absolute; right:0; margin-top:10px; background:rgba(8,10,20,0.95); border:1px solid rgba(255,255,255,0.1); border-radius:10px; min-width:160px;">
                         <a href="#" class="nav-link" style="display:block; padding:10px 12px;">My Account</a>
                         <a href="#" class="nav-link" style="display:block; padding:10px 12px;">Settings</a>
