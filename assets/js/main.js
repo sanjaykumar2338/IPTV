@@ -236,6 +236,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const categoriesDest = document.getElementById('drawerCategoriesList');
         const categoriesToggle = document.getElementById('drawerCategoriesToggle');
         const categoriesBody = document.getElementById('drawerCategories');
+        const categoriesSection = categoriesBody?.closest('.drawer-section');
 
         if (!toggleBtn || !overlay || !drawer) return;
 
@@ -276,14 +277,20 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
 
+        const applyCategoryMarkup = (markup) => {
+            if (!categoriesDest) return false;
+            if (!markup) return false;
+            categoriesDest.innerHTML = markup;
+            categoriesDest.querySelectorAll('a').forEach(a => a.addEventListener('click', closeDrawer));
+            categoriesSection?.classList.remove('is-hidden');
+            return true;
+        };
+
         const syncCategories = () => {
             if (!categoriesSource || !categoriesDest) return false;
             if (!categoriesSource.children.length) return false;
-            categoriesDest.innerHTML = categoriesSource.innerHTML;
-            categoriesDest.querySelectorAll('a').forEach(a => {
-                a.addEventListener('click', closeDrawer);
-            });
-            return true;
+            const markup = categoriesSource.innerHTML;
+            return applyCategoryMarkup(markup);
         };
 
         if (!syncCategories() && categoriesSource && categoriesDest) {
@@ -291,6 +298,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (syncCategories()) observer.disconnect();
             });
             observer.observe(categoriesSource, { childList: true });
+        }
+
+        // Fallback: fetch genres if no categories present on the page
+        if (categoriesDest && (!categoriesSource || !categoriesSource.children.length)) {
+            fetch('/api/home.php', { headers: { Accept: 'application/json' } })
+                .then(res => res.ok ? res.json() : Promise.reject())
+                .then(data => {
+                    const genres = Array.isArray(data.genres) ? data.genres : [];
+                    if (!genres.length) {
+                        categoriesSection?.classList.add('is-hidden');
+                        return;
+                    }
+                    const markup = genres.map(row => {
+                        const genre = (row.genre || 'More to Watch').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                        const slug = (row.genre || 'more-to-watch').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+                        return `<li><a href="/index.php#genre-${slug}">${genre}</a></li>`;
+                    }).join('');
+                    applyCategoryMarkup(markup);
+                })
+                .catch(() => categoriesSection?.classList.add('is-hidden'));
         }
 
         drawer.addEventListener('click', (e) => {

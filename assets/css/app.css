@@ -279,6 +279,7 @@ body {
 .drawer-accordion-body.open { display: block; }
 .drawer-accordion i { transition: transform 0.2s ease; }
 .drawer-accordion.open i { transform: rotate(90deg); }
+.drawer-section.is-hidden { display: none; }
 
 /* Mobile sidebar drawer */
 .sidebar-toggle {
