@@ -9,6 +9,9 @@ $channels_count = $pdo->query("SELECT COUNT(*) FROM channels")->fetchColumn();
 $active_channels = $pdo->query("SELECT COUNT(*) FROM channels WHERE is_active = true")->fetchColumn();
 $categories_count = $pdo->query("SELECT COUNT(DISTINCT category) FROM channels")->fetchColumn();
 $total_views = $pdo->query("SELECT SUM(views) FROM channels")->fetchColumn();
+$movies_count = $pdo->query("SELECT COUNT(*) FROM movies")->fetchColumn();
+$series_count = $pdo->query("SELECT COUNT(*) FROM series")->fetchColumn();
+$episodes_count = $pdo->query("SELECT COUNT(*) FROM episodes")->fetchColumn();
 
 // Recent channels
 $recent_channels = $pdo->query("SELECT * FROM channels ORDER BY created_at DESC LIMIT 5")->fetchAll();
@@ -63,6 +66,18 @@ $recent_channels = $pdo->query("SELECT * FROM channels ORDER BY created_at DESC 
             <div class="stat-card">
                 <div class="stat-number"><?php echo number_format($total_views); ?></div>
                 <div class="stat-label">Total Views</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number"><?php echo $movies_count; ?></div>
+                <div class="stat-label">Movies</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number"><?php echo $series_count; ?></div>
+                <div class="stat-label">Series</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number"><?php echo $episodes_count; ?></div>
+                <div class="stat-label">Episodes</div>
             </div>
         </div>
 

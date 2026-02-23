@@ -88,38 +88,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['m3u_file'])) {
             $parser = new M3UParser($filePath);
             $channels = $parser->parse();
             $stats = $parser->getStats();
-            
-            $imported = 0;
-            $skipped = 0;
-            
-            foreach ($channels as $channel) {
-                // Check if channel already exists
-                $checkStmt = $pdo->prepare("SELECT id FROM channels WHERE name = ? OR stream_url = ?");
-                $checkStmt->execute([$channel['name'], $channel['stream_url']]);
-                
-                if ($checkStmt->fetch()) {
-                    $skipped++;
-                    continue; // Skip duplicate
-                }
-                
-                $stmt = $pdo->prepare("INSERT INTO channels (name, stream_url, category, logo_url, tvg_id, drm_type, license_key, license_url) 
-                                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt->execute([
-                    $channel['name'],
-                    $channel['stream_url'],
-                    $channel['category'],
-                    $channel['logo'],
-                    $channel['tvg_id'],
-                    $channel['drm']['type'],
-                    $channel['drm']['license_key'],
-                    $channel['drm']['license_url']
-                ]);
-                $imported++;
-            }
-            
-            $success = "Successfully imported {$imported} channels! ";
-            if ($skipped > 0) {
-                $success .= "{$skipped} duplicates skipped.";
+
+            // VOD-aware import
+            include_once '../includes/vod_import.php';
+            $importStats = import_vod_from_m3u($pdo, $channels);
+
+            $successParts = [];
+            if ($importStats['live_imported'] > 0) $successParts[] = "{$importStats['live_imported']} live channels";
+            if ($importStats['movies_inserted'] > 0) $successParts[] = "{$importStats['movies_inserted']} movies";
+            if ($importStats['series_inserted'] > 0) $successParts[] = "{$importStats['series_inserted']} series";
+            if ($importStats['episodes_inserted'] > 0) $successParts[] = "{$importStats['episodes_inserted']} episodes";
+            $success = "Imported: " . implode(', ', $successParts ?: ['nothing new']) . ".";
+            if ($importStats['live_skipped'] > 0) $success .= " Skipped {$importStats['live_skipped']} duplicate live streams.";
+            if (!empty($importStats['errors'])) {
+                $success .= " With " . count($importStats['errors']) . " minor errors.";
             }
             unlink($filePath); // Clean up
         } catch (Exception $e) {

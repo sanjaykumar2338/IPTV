@@ -2,6 +2,7 @@
 include '../../includes/config.php';
 include '../../includes/auth.php';
 include '../../includes/m3u-parser.php';
+include '../../includes/vod_import.php';
 
 // Require admin authentication for API access
 if (!isAdminLoggedIn()) {
@@ -46,60 +47,25 @@ try {
         throw new Exception('No channels found in the M3U file');
     }
     
-    // Import channels
-    $imported = 0;
-    $skipped = 0;
-    $errors = [];
-    
-    foreach ($channels as $index => $channel) {
-        try {
-            // Check if channel already exists
-            $stmt = $pdo->prepare("SELECT COUNT(*) FROM channels WHERE stream_url = ?");
-            $stmt->execute([$channel['stream_url']]);
-            $exists = $stmt->fetchColumn();
-            
-            if ($exists) {
-                $skipped++;
-                continue;
-            }
-            
-            // Insert new channel
-            $stmt = $pdo->prepare("
-                INSERT INTO channels (name, stream_url, category, logo_url, tvg_id, drm_type, license_key, license_url) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ");
-            
-            $stmt->execute([
-                $channel['name'] ?? 'Unknown Channel',
-                $channel['stream_url'] ?? '',
-                $channel['category'] ?? 'General',
-                $channel['logo'] ?? '',
-                $channel['tvg_id'] ?? '',
-                $channel['drm']['type'] ?? null,
-                $channel['drm']['license_key'] ?? null,
-                $channel['drm']['license_url'] ?? null
-            ]);
-            
-            $imported++;
-            
-        } catch (Exception $e) {
-            $errors[] = "Channel {$index}: " . $e->getMessage();
-        }
-    }
-    
-    // Clean up uploaded file
-    unlink($filePath);
+    $importStats = import_vod_from_m3u($pdo, $channels);
+    unlink($filePath); // clean up
     
     $response = [
         'success' => true,
         'data' => [
-            'imported' => $imported,
-            'skipped' => $skipped,
-            'errors' => $errors,
+            'live_imported' => $importStats['live_imported'],
+            'live_skipped' => $importStats['live_skipped'],
+            'movies_inserted' => $importStats['movies_inserted'],
+            'movies_updated' => $importStats['movies_updated'],
+            'series_inserted' => $importStats['series_inserted'],
+            'series_updated' => $importStats['series_updated'],
+            'episodes_inserted' => $importStats['episodes_inserted'],
+            'episodes_updated' => $importStats['episodes_updated'],
+            'errors' => $importStats['errors'],
             'stats' => $stats,
             'totalProcessed' => count($channels)
         ],
-        'message' => "Successfully imported {$imported} channels"
+        'message' => "Imported live: {$importStats['live_imported']} (skipped {$importStats['live_skipped']}), movies: {$importStats['movies_inserted']} new / {$importStats['movies_updated']} updated, series: {$importStats['series_inserted']} new / {$importStats['series_updated']} updated"
     ];
     
 } catch (Exception $e) {
