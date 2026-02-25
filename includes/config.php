@@ -12,7 +12,7 @@ $dbConfig = $isLocal ? [
     'pass' => ''
  ] : [
     'host' => 'localhost',
-    'name' => 'sanjay_iptv',
+    'name' => 'elitetv',
     'user' => 'sanjay_iptv',
     'pass' => '2n_oMJdrTxbj!KiN'
  ];
