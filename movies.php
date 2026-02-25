@@ -7,42 +7,12 @@ $site_name = getSetting($pdo, 'site_name', 'Premium IPTV');
 $asset_version = time();
 
 // Filters
-$genreFilters = $_GET['genre'] ?? [];
-if (!is_array($genreFilters)) $genreFilters = [$genreFilters];
-$yearMin = isset($_GET['year_min']) ? (int) $_GET['year_min'] : null;
-$yearMax = isset($_GET['year_max']) ? (int) $_GET['year_max'] : null;
-$ratingMin = isset($_GET['rating_min']) ? (float) $_GET['rating_min'] : null;
-$sort = $_GET['sort'] ?? 'recent';
-$page = max(1, (int)($_GET['page'] ?? 1));
-$limit = 24;
-$offset = ($page - 1) * $limit;
-
-$where = [];
-$params = [];
-if ($genreFilters) {
-    $or = [];
-    foreach ($genreFilters as $g) {
-        $or[] = "genre LIKE ?";
-        $params[] = '%' . $g . '%';
-    }
-    $where[] = '(' . implode(' OR ', $or) . ')';
-}
-if ($yearMin) { $where[] = "year >= ?"; $params[] = $yearMin; }
-if ($yearMax) { $where[] = "year <= ?"; $params[] = $yearMax; }
-if ($ratingMin) { $where[] = "rating >= ?"; $params[] = $ratingMin; }
-$whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
-
-switch ($sort) {
-    case 'popular': $order = 'popularity DESC, created_at DESC'; break;
-    case 'az': $order = 'title ASC'; break;
-    default: $order = 'created_at DESC';
-}
-
-$stmt = $pdo->prepare("SELECT SQL_CALC_FOUND_ROWS * FROM movies $whereSql ORDER BY $order LIMIT $limit OFFSET $offset");
-$stmt->execute($params);
+$page = 1;
+$limit = null; // no pagination for debug simplicity
+$stmt = $pdo->query("SELECT * FROM movies ORDER BY id DESC");
 $movies = $stmt->fetchAll(PDO::FETCH_ASSOC);
-$total = (int)$pdo->query("SELECT FOUND_ROWS()")->fetchColumn();
-$pages = max(1, ceil($total / $limit));
+$total = count($movies);
+$pages = 1;
 
 $genresAll = $pdo->query("SELECT DISTINCT genre FROM movies WHERE genre IS NOT NULL AND genre <> '' ORDER BY genre")->fetchAll(PDO::FETCH_COLUMN);
 ?>
