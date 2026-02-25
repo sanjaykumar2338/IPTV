@@ -44,6 +44,11 @@ $total = (int)$pdo->query("SELECT FOUND_ROWS()")->fetchColumn();
 $pages = max(1, ceil($total / $limit));
 
 $genresAll = $pdo->query("SELECT DISTINCT genre FROM series WHERE genre IS NOT NULL AND genre <> '' ORDER BY genre")->fetchAll(PDO::FETCH_COLUMN);
+
+// Temporary debug print to verify data on live
+$dbgDb  = $pdo->query("SELECT DATABASE()")->fetchColumn();
+$dbgCnt = (int)$pdo->query("SELECT COUNT(*) FROM series")->fetchColumn();
+echo "<pre style=\"padding:10px; background:#111; color:#0f0;\">DEBUG: DB={$dbgDb} series_count={$dbgCnt}</pre>";
 ?>
 <!DOCTYPE html>
 <html lang="en">
