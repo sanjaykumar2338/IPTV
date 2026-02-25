@@ -178,9 +178,16 @@ function import_vod_from_m3u(PDO $pdo, array $entries, int $commitEvery = 100): 
         $logo = $channel['logo'] ?? '';
         $stream = $channel['stream_url'] ?? '';
         $tvgId = $channel['tvg_id'] ?? '';
+        // Heuristic flags so VOD still routes even if group-title is missing/incorrect
+        $isSeriesByName = (bool) preg_match('/\\bS\\d{1,2}E\\d{1,2}\\b/i', $title) 
+            || (bool) preg_match('/\\bSeason\\s*\\d+\\s*Episode\\s*\\d+/i', $title)
+            || (bool) preg_match('/\\b\\d+x\\d+\\b/', $title);
+        $isSeriesGroup = strpos($group, 'series') !== false;
+        $isMovieGroup = strpos($group, 'movie') !== false;
+        $isSeries = $isSeriesGroup || $isSeriesByName;
 
         try {
-            if (strpos($group, 'movie') !== false) {
+            if ($isMovieGroup && !$isSeries) {
                 $sourceId = build_source_id($tvgId, $title, $stream);
                 $result = upsert_movie($pdo, [
                     'title' => $title,
@@ -193,7 +200,7 @@ function import_vod_from_m3u(PDO $pdo, array $entries, int $commitEvery = 100): 
                 continue;
             }
 
-            if (strpos($group, 'series') !== false) {
+            if ($isSeries) {
                 $meta = parse_series_meta($title);
                 $seriesSource = hash('sha1', $meta['series_title']);
                 $seriesResult = upsert_series($pdo, [
