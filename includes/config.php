@@ -13,8 +13,8 @@ $dbConfig = $isLocal ? [
  ] : [
     'host' => 'localhost',
     'name' => 'elitetv',
-    'user' => 'sanjay_iptv',
-    'pass' => '2n_oMJdrTxbj!KiN'
+    'user' => 'root',
+    'pass' => 'KMjshdhyr2112'
  ];
 
 define('DB_HOST', $dbConfig['host']);
