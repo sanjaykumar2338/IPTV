@@ -56,14 +56,13 @@ function get_id_by_source(PDO $pdo, string $table, string $sourceId): ?int {
 
 function upsert_movie(PDO $pdo, array $entry): array {
     $stmt = $pdo->prepare("
-        INSERT INTO movies (title, genre, poster_url, stream_url, source_id, created_at, updated_at)
-        VALUES (:title, :genre, :poster, :stream, :source_id, NOW(), NOW())
+        INSERT INTO movies (title, genre, poster_url, stream_url, source_id)
+        VALUES (:title, :genre, :poster, :stream, :source_id)
         ON DUPLICATE KEY UPDATE
             title = VALUES(title),
             genre = VALUES(genre),
             poster_url = VALUES(poster_url),
-            stream_url = VALUES(stream_url),
-            updated_at = VALUES(updated_at)
+            stream_url = VALUES(stream_url)
     ");
     $stmt->execute([
         ':title' => $entry['title'],
@@ -80,13 +79,12 @@ function upsert_movie(PDO $pdo, array $entry): array {
 
 function upsert_series(PDO $pdo, array $entry): array {
     $stmt = $pdo->prepare("
-        INSERT INTO series (title, genre, poster_url, source_id, created_at, updated_at)
-        VALUES (:title, :genre, :poster, :source_id, NOW(), NOW())
+        INSERT INTO series (title, genre, poster_url, source_id)
+        VALUES (:title, :genre, :poster, :source_id)
         ON DUPLICATE KEY UPDATE
             title = VALUES(title),
             genre = VALUES(genre),
-            poster_url = VALUES(poster_url),
-            updated_at = VALUES(updated_at)
+            poster_url = VALUES(poster_url)
     ");
     $stmt->execute([
         ':title' => $entry['title'],
@@ -102,13 +100,12 @@ function upsert_series(PDO $pdo, array $entry): array {
 
 function upsert_episode(PDO $pdo, array $entry): array {
     $stmt = $pdo->prepare("
-        INSERT INTO episodes (series_id, season_number, episode_number, title, stream_url, thumbnail_url, source_id, created_at, updated_at)
-        VALUES (:series_id, :season, :episode, :title, :stream, :thumb, :source_id, NOW(), NOW())
+        INSERT INTO episodes (series_id, season_number, episode_number, title, stream_url, thumbnail_url, source_id)
+        VALUES (:series_id, :season, :episode, :title, :stream, :thumb, :source_id)
         ON DUPLICATE KEY UPDATE
             title = VALUES(title),
             stream_url = VALUES(stream_url),
-            thumbnail_url = VALUES(thumbnail_url),
-            updated_at = VALUES(updated_at)
+            thumbnail_url = VALUES(thumbnail_url)
     ");
     $stmt->execute([
         ':series_id' => $entry['series_id'],
