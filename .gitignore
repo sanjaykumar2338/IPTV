@@ -1,1 +1,9 @@
+# Ignore OS cruft
 .DS_Store
+
+# Upload/media dumps
+uploads/
+*.m3u
+
+# Logs
+storage/logs/
