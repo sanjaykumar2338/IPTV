@@ -7,9 +7,9 @@ $isLocal = in_array($hostName, ['localhost', '127.0.0.1'], true) || str_contains
 
 $dbConfig = [
     'host' => '127.0.0.1',
-    'name' => 'learningscriptin_stream',
+    'name' => 'elitetv',
     'user' => 'root',
-    'pass' => ''
+    'pass' => 'KMjshdhyr2112'
 ];
 
 define('DB_HOST', $dbConfig['host']);
