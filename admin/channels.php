@@ -3,6 +3,7 @@ include '../includes/config.php';
 include '../includes/auth.php';
 include '../includes/functions.php';
 include '../includes/m3u-parser.php';
+include '../pages/import_logger.php';
 requireAdminAuth();
 
 // Handle export requests
@@ -85,13 +86,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['m3u_file'])) {
     
     if (move_uploaded_file($_FILES['m3u_file']['tmp_name'], $filePath)) {
         try {
+            import_log("IMPORT START (channels.php form)");
+
+            import_log("PHP INFO", [
+                'php_version' => PHP_VERSION,
+                'memory_limit' => ini_get('memory_limit'),
+                'max_execution_time' => ini_get('max_execution_time'),
+                'upload_max_filesize' => ini_get('upload_max_filesize'),
+                'post_max_size' => ini_get('post_max_size'),
+                'content_length' => $_SERVER['CONTENT_LENGTH'] ?? null,
+            ]);
+            import_log("FILES SNAPSHOT", [
+                '_FILES_keys' => array_keys($_FILES ?? []),
+                '_POST_keys' => array_keys($_POST ?? []),
+            ]);
+
+            @set_time_limit(0);
+            @ini_set('memory_limit', '1024M');
+
+            $upload = $_FILES['m3u_file'] ?? null;
+            import_log("UPLOAD META", [
+                'exists' => (bool)$upload,
+                'name' => $upload['name'] ?? null,
+                'type' => $upload['type'] ?? null,
+                'size' => $upload['size'] ?? null,
+                'tmp_name' => $upload['tmp_name'] ?? null,
+                'error' => $upload['error'] ?? null,
+            ]);
+
             $parser = new M3UParser($filePath);
             $channels = $parser->parse();
             $stats = $parser->getStats();
+            import_log("PARSE DONE", ['channels' => count($channels), 'stats' => $stats]);
 
             // VOD-aware import
             include_once '../includes/vod_import.php';
             $importStats = import_vod_from_m3u($pdo, $channels);
+            import_log("IMPORT DONE (channels.php)", $importStats);
 
             $successParts = [];
             if ($importStats['live_imported'] > 0) $successParts[] = "{$importStats['live_imported']} live channels";

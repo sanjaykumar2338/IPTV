@@ -3,6 +3,26 @@ include '../../includes/config.php';
 include '../../includes/auth.php';
 include '../../includes/m3u-parser.php';
 include '../../includes/vod_import.php';
+include '../../pages/import_logger.php';
+
+import_log("IMPORT START (api/import_m3u.php)");
+
+import_log("PHP INFO", [
+  'php_version' => PHP_VERSION,
+  'memory_limit' => ini_get('memory_limit'),
+  'max_execution_time' => ini_get('max_execution_time'),
+  'upload_max_filesize' => ini_get('upload_max_filesize'),
+  'post_max_size' => ini_get('post_max_size'),
+  'content_length' => $_SERVER['CONTENT_LENGTH'] ?? null,
+]);
+
+import_log("FILES SNAPSHOT", [
+  '_FILES_keys' => array_keys($_FILES ?? []),
+  '_POST_keys' => array_keys($_POST ?? []),
+]);
+
+@set_time_limit(0);
+@ini_set('memory_limit', '1024M');
 
 // Require admin authentication for API access
 if (!isAdminLoggedIn()) {
@@ -22,8 +42,17 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 try {
     // Check if file was uploaded
     if (!isset($_FILES['m3u_file']) || $_FILES['m3u_file']['error'] !== UPLOAD_ERR_OK) {
+        import_log("UPLOAD FAILED", ['error' => $_FILES['m3u_file']['error'] ?? 'NO_FILE']);
         throw new Exception('No file uploaded or upload error');
     }
+    
+    import_log("UPLOAD META", [
+        'name' => $_FILES['m3u_file']['name'] ?? null,
+        'type' => $_FILES['m3u_file']['type'] ?? null,
+        'size' => $_FILES['m3u_file']['size'] ?? null,
+        'tmp_name' => $_FILES['m3u_file']['tmp_name'] ?? null,
+        'error' => $_FILES['m3u_file']['error'] ?? null,
+    ]);
     
     $uploadDir = '../../uploads/';
     if (!is_dir($uploadDir)) {
@@ -42,12 +71,14 @@ try {
     $parser = new M3UParser($filePath);
     $channels = $parser->parse();
     $stats = $parser->getStats();
+    import_log("PARSE DONE", ['channels' => count($channels), 'stats' => $stats]);
     
     if (empty($channels)) {
         throw new Exception('No channels found in the M3U file');
     }
     
     $importStats = import_vod_from_m3u($pdo, $channels);
+    import_log("IMPORT DONE (API)", $importStats);
     unlink($filePath); // clean up
     
     $response = [
