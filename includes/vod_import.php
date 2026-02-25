@@ -132,6 +132,26 @@ function import_vod_from_m3u(PDO $pdo, array $entries, int $commitEvery = 5000):
     // Reduce buffering issues if any output happens later
     while (ob_get_level()) { @ob_end_clean(); }
 
+    // Table existence guard to avoid flooding errors when schema is missing
+    $tablesList = $pdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
+    import_log("DB TABLES", ['tables' => $tablesList]);
+    $required = ['movies', 'series', 'episodes'];
+    $missing = array_values(array_diff($required, $tablesList));
+    if ($missing) {
+        import_log("FATAL: Missing VOD tables", ['missing' => $missing]);
+        return [
+            'live_imported' => 0,
+            'live_skipped' => 0,
+            'movies_inserted' => 0,
+            'movies_updated' => 0,
+            'series_inserted' => 0,
+            'series_updated' => 0,
+            'episodes_inserted' => 0,
+            'episodes_updated' => 0,
+            'errors' => ['Missing tables: ' . implode(', ', $missing)]
+        ];
+    }
+
     $stats = [
         'live_imported' => 0,
         'live_skipped' => 0,
@@ -237,6 +257,13 @@ function import_vod_from_m3u(PDO $pdo, array $entries, int $commitEvery = 5000):
             }
         } catch (Exception $e) {
             $stats['errors'][] = "Row {$index}: " . $e->getMessage();
+            import_log("ROW FAILED", [
+                'index' => $index,
+                'type' => $group,
+                'title' => $title,
+                'source_id' => $channel['tvg_id'] ?? null,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 
