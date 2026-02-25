@@ -5,7 +5,12 @@ require_once __DIR__ . '/auth/session.php';
 $hostName = $_SERVER['HTTP_HOST'] ?? '';
 $isLocal = in_array($hostName, ['localhost', '127.0.0.1'], true) || str_contains($hostName, '.local') || PHP_SAPI === 'cli';
 
-$dbConfig = [
+$dbConfig = $isLocal ? [
+    'host' => '127.0.0.1',
+    'name' => 'learningscriptin_stream',
+    'user' => 'root',
+    'pass' => ''
+] : [
     'host' => '127.0.0.1',
     'name' => 'elitetv',
     'user' => 'root',
