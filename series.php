@@ -55,12 +55,13 @@ $asset_version = time();
 <body>
 <?php include __DIR__ . '/pages/partials/header.php'; ?>
 <main class="page-shell">
+    <?php $hasBanner = !empty($series['banner_url']); ?>
     <div class="glass-card" style="overflow:hidden;">
-        <?php if (!empty($series['banner_url'])): ?>
+        <?php if ($hasBanner): ?>
             <div style="background:url('<?php echo sanitize($series['banner_url']); ?>') center/cover; height:220px; border-radius:12px; filter:brightness(0.7);"></div>
         <?php endif; ?>
-        <div style="display:grid; grid-template-columns: 260px 1fr; gap:18px; margin-top:-140px; align-items:start;">
-            <div>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:18px; margin-top:<?php echo $hasBanner ? '-140px' : '0'; ?>; align-items:start;">
+            <div style="max-width:320px;">
                 <img src="<?php echo sanitize($series['poster_url']); ?>" alt="<?php echo sanitize($series['title']); ?>" style="width:100%; border-radius:16px; box-shadow:var(--shadow);">
             </div>
             <div>
