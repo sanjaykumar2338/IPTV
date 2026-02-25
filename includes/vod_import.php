@@ -179,9 +179,9 @@ function import_vod_from_m3u(PDO $pdo, array $entries, int $commitEvery = 100): 
         $stream = $channel['stream_url'] ?? '';
         $tvgId = $channel['tvg_id'] ?? '';
         // Heuristic flags so VOD still routes even if group-title is missing/incorrect
+        // Avoid misclassifying 24x7/live-style channel names as series; rely on explicit season/episode tokens
         $isSeriesByName = (bool) preg_match('/\\bS\\d{1,2}E\\d{1,2}\\b/i', $title) 
-            || (bool) preg_match('/\\bSeason\\s*\\d+\\s*Episode\\s*\\d+/i', $title)
-            || (bool) preg_match('/\\b\\d+x\\d+\\b/', $title);
+            || (bool) preg_match('/\\bSeason\\s*\\d+\\s*Episode\\s*\\d+/i', $title);
         $isSeriesGroup = strpos($group, 'series') !== false;
         $isMovieGroup = strpos($group, 'movie') !== false;
         $isSeries = $isSeriesGroup || $isSeriesByName;

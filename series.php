@@ -18,6 +18,7 @@ if (!$series) {
 $seasonStmt = $pdo->prepare("SELECT DISTINCT season_number FROM episodes WHERE series_id = ? ORDER BY season_number");
 $seasonStmt->execute([$series['id']]);
 $seasons = $seasonStmt->fetchAll(PDO::FETCH_COLUMN);
+$seasonCount = count($seasons);
 $currentSeason = (int) ($_GET['season'] ?? ($seasons[0] ?? 1));
 
 $episodesStmt = $pdo->prepare("SELECT * FROM episodes WHERE series_id = ? AND season_number = ? ORDER BY episode_number");
@@ -65,7 +66,13 @@ $asset_version = time();
             <div>
                 <div class="badge">Series</div>
                 <h1 style="margin:8px 0 6px; font-size:2.2rem;"><?php echo sanitize($series['title']); ?></h1>
-                <p style="color:var(--muted); margin:6px 0 14px;">Year: <?php echo (int)$series['year']; ?> • Genre: <?php echo sanitize($series['genre']); ?> • Seasons: <?php echo (int)$series['seasons']; ?> • Rating: <?php echo $series['rating']; ?></p>
+                <?php
+                    $year    = $series['year'] ?: '—';
+                    $genre   = $series['genre'] ? sanitize($series['genre']) : 'Unspecified';
+                    $seasonsLabel = $seasonCount ?: ($series['seasons'] ?: '—');
+                    $rating  = $series['rating'] ?: '—';
+                ?>
+                <p style="color:var(--muted); margin:6px 0 14px;">Year: <?php echo $year; ?> • Genre: <?php echo $genre; ?> • Seasons: <?php echo $seasonsLabel; ?> • Rating: <?php echo $rating; ?></p>
                 <p style="line-height:1.6; margin-bottom:16px; color:var(--text); opacity:0.92;"><?php echo nl2br(sanitize($series['synopsis'])); ?></p>
                 <div style="display:flex; gap:10px; flex-wrap:wrap;">
                     <?php if (!empty($series['trailer_url'])): ?>
