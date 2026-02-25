@@ -3,15 +3,16 @@ require_once __DIR__ . '/auth/session.php';
 
 // Database Configuration (switches based on environment)
 $hostName = $_SERVER['HTTP_HOST'] ?? '';
-$isLocal = in_array($hostName, ['localhost', '127.0.0.1'], true) || str_contains($hostName, '.local') || PHP_SAPI === 'cli';
+// Treat CLI as production unless an explicit .local/localhost host is set
+$isLocal = in_array($hostName, ['localhost', '127.0.0.1'], true) || str_contains($hostName, '.local');
 
 $dbConfig = $isLocal ? [
-    'host' => 'localhost',
+    'host' => '127.0.0.1',
     'name' => 'learningscriptin_stream',
     'user' => 'root',
     'pass' => ''
  ] : [
-    'host' => 'localhost',
+    'host' => '127.0.0.1',
     'name' => 'sanjay_iptv',
     'user' => 'sanjay_iptv',
     'pass' => '2n_oMJdrTxbj!KiN'
