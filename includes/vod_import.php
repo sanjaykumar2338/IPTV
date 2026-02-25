@@ -124,7 +124,7 @@ function upsert_episode(PDO $pdo, array $entry): array {
     return ['inserted' => $inserted];
 }
 
-function import_vod_from_m3u(PDO $pdo, array $entries, int $commitEvery = 5000): array {
+function import_vod_from_m3u(PDO $pdo, array $entries, int $commitEvery = 100): array {
     // Keep long imports alive
     @set_time_limit(0);
     @ignore_user_abort(true);
