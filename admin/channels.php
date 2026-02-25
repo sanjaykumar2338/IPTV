@@ -78,13 +78,15 @@ if (isset($_GET['export'])) {
 
 // Handle M3U import
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['m3u_file'])) {
-    $uploadDir = '../uploads/';
+    $uploadDir = realpath(__DIR__ . '/../uploads') ?: (__DIR__ . '/../uploads');
     if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
+    $uploadWritable = is_writable($uploadDir);
+    error_log("UPLOAD_DIR_CHECK channels.php", ['dir' => $uploadDir, 'writable' => $uploadWritable]);
     
     $fileName = time() . '_' . basename($_FILES['m3u_file']['name']);
     $filePath = $uploadDir . $fileName;
     
-    if (move_uploaded_file($_FILES['m3u_file']['tmp_name'], $filePath)) {
+    if ($uploadWritable && move_uploaded_file($_FILES['m3u_file']['tmp_name'], $filePath)) {
         try {
             import_log("IMPORT START (channels.php form)");
 
@@ -151,7 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['m3u_file'])) {
             0                     => 'Unknown upload error (check permissions on uploads/).'
         ];
         $msg = $uploadMessages[$uploadCode] ?? 'Upload failed.';
-        $error = "Error uploading file: {$msg} (code {$uploadCode}). Upload dir writable: " . (is_writable($uploadDir) ? 'yes' : 'no');
+        $error = "Error uploading file: {$msg} (code {$uploadCode}). Upload dir: {$uploadDir} writable: " . ($uploadWritable ? 'yes' : 'no');
     }
 }
 
