@@ -3,15 +3,19 @@ require_once __DIR__ . '/auth/session.php';
 
 // Database Configuration (switches based on environment)
 $hostName = $_SERVER['HTTP_HOST'] ?? '';
-// Local only when using explicit local hostnames; CLI defaults to prod creds
-$isLocal = in_array($hostName, ['localhost', '127.0.0.1'], true) || str_contains($hostName, '.local');
+$isLocal = in_array($hostName, ['localhost', '127.0.0.1'], true) || str_contains($hostName, '.local') || PHP_SAPI === 'cli';
 
-$dbConfig = [
-    'host' => '127.0.0.1',
+$dbConfig = $isLocal ? [
+    'host' => 'localhost',
     'name' => 'learningscriptin_stream',
     'user' => 'root',
     'pass' => ''
-];
+ ] : [
+    'host' => 'localhost',
+    'name' => 'sanjay_iptv',
+    'user' => 'sanjay_iptv',
+    'pass' => '2n_oMJdrTxbj!KiN'
+ ];
 
 define('DB_HOST', $dbConfig['host']);
 define('DB_NAME', $dbConfig['name']);
@@ -26,28 +30,13 @@ $site_config = [
     'debug' => true
 ];
 
-// Create database connection with fallback hosts (socket then TCP)
-$hostsToTry = $isLocal ? [DB_HOST] : ['localhost', '127.0.0.1'];
-$pdo = null;
-$selectedHost = null;
-foreach ($hostsToTry as $h) {
-    try {
-        $pdo = new PDO("mysql:host={$h};dbname=" . DB_NAME, DB_USER, DB_PASS, [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        ]);
-        $selectedHost = $h;
-        break;
-    } catch (PDOException $e) {
-        $lastDbException = $e;
-        continue;
-    }
+// Create database connection
+try {
+    $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch(PDOException $e) {
+    die("Database connection failed: " . $e->getMessage());
 }
-if (!$pdo) {
-    die("Database connection failed: " . ($lastDbException->getMessage() ?? 'unknown error'));
-}
-// Expose the actual host used
-define('DB_HOST', $selectedHost);
 
 // Create tables if they don't exist
 function createTables($pdo) {
