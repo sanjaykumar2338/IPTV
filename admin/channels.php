@@ -79,9 +79,14 @@ if (isset($_GET['export'])) {
 // Handle M3U import
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['m3u_file'])) {
     $uploadDir = realpath(__DIR__ . '/../uploads') ?: (__DIR__ . '/../uploads');
-    if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
+    // normalise with trailing slash so file paths are valid
+    $uploadDir = rtrim($uploadDir, "/\\") . DIRECTORY_SEPARATOR;
+    if (!is_dir($uploadDir)) {
+        @mkdir($uploadDir, 0775, true);
+    }
     $uploadWritable = is_writable($uploadDir);
-    error_log("UPLOAD_DIR_CHECK channels.php", ['dir' => $uploadDir, 'writable' => $uploadWritable]);
+    // avoid fatal: error_log expects string
+    error_log("UPLOAD_DIR_CHECK channels.php dir={$uploadDir} writable=" . ($uploadWritable ? 'yes' : 'no'));
     
     $fileName = time() . '_' . basename($_FILES['m3u_file']['name']);
     $filePath = $uploadDir . $fileName;
