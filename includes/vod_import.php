@@ -170,8 +170,8 @@ function import_vod_from_m3u(PDO $pdo, array $entries, int $commitEvery = 100): 
 
     // Prepared statements reused in loops
     $liveInsert = $pdo->prepare("
-        INSERT INTO channels (name, stream_url, category, logo_url, tvg_id, drm_type, license_key, license_url, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+        INSERT INTO channels (name, stream_url, category, logo_url, tvg_id, drm_type, license_key, license_url, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
     ");
     $liveExists = $pdo->prepare("SELECT id FROM channels WHERE stream_url = ? LIMIT 1");
 
