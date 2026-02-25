@@ -124,7 +124,7 @@ function upsert_episode(PDO $pdo, array $entry): array {
     return ['inserted' => $inserted];
 }
 
-function import_vod_from_m3u(PDO $pdo, array $entries): array {
+function import_vod_from_m3u(PDO $pdo, array $entries, int $commitEvery = 5000): array {
     // Keep long imports alive
     @set_time_limit(0);
     @ignore_user_abort(true);
@@ -144,8 +144,9 @@ function import_vod_from_m3u(PDO $pdo, array $entries): array {
         'errors' => []
     ];
 
-    // Use a single transaction to reduce commit overhead
+    // Chunked transaction to reduce lock time for huge imports
     $pdo->beginTransaction();
+    $processedSinceCommit = 0;
 
     // Prepared statements reused in loops
     $liveInsert = $pdo->prepare("
@@ -222,6 +223,17 @@ function import_vod_from_m3u(PDO $pdo, array $entries): array {
             // Log occasional progress to error_log for visibility
             if (($stats['live_imported'] + $stats['movies_inserted'] + $stats['series_inserted']) % 1000 === 0) {
                 error_log("M3U import progress: " . ($stats['live_imported'] + $stats['movies_inserted'] + $stats['series_inserted']) . " items processed");
+            }
+
+            $processedSinceCommit++;
+            if ($processedSinceCommit >= $commitEvery) {
+                $pdo->commit();
+                $pdo->beginTransaction();
+                $processedSinceCommit = 0;
+                import_log("IMPORT PARTIAL COMMIT", [
+                    'processed' => $stats['live_imported'] + $stats['movies_inserted'] + $stats['series_inserted'],
+                    'mem_mb' => round(memory_get_usage(true)/1024/1024, 1)
+                ]);
             }
         } catch (Exception $e) {
             $stats['errors'][] = "Row {$index}: " . $e->getMessage();
