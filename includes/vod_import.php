@@ -125,6 +125,13 @@ function upsert_episode(PDO $pdo, array $entry): array {
 }
 
 function import_vod_from_m3u(PDO $pdo, array $entries): array {
+    // Keep long imports alive
+    @set_time_limit(0);
+    @ignore_user_abort(true);
+
+    // Reduce buffering issues if any output happens later
+    while (ob_get_level()) { @ob_end_clean(); }
+
     $stats = [
         'live_imported' => 0,
         'live_skipped' => 0,
@@ -136,6 +143,16 @@ function import_vod_from_m3u(PDO $pdo, array $entries): array {
         'episodes_updated' => 0,
         'errors' => []
     ];
+
+    // Use a single transaction to reduce commit overhead
+    $pdo->beginTransaction();
+
+    // Prepared statements reused in loops
+    $liveInsert = $pdo->prepare("
+        INSERT INTO channels (name, stream_url, category, logo_url, tvg_id, drm_type, license_key, license_url, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+    ");
+    $liveExists = $pdo->prepare("SELECT id FROM channels WHERE stream_url = ? LIMIT 1");
 
     foreach ($entries as $index => $channel) {
         $group = normalize_group($channel['category'] ?? '');
@@ -183,19 +200,14 @@ function import_vod_from_m3u(PDO $pdo, array $entries): array {
                 continue;
             }
 
-            // Live channel fallback
-            $liveCheck = $pdo->prepare("SELECT id FROM channels WHERE stream_url = ? LIMIT 1");
-            $liveCheck->execute([$stream]);
-            if ($liveCheck->fetch()) {
+            // Live channel fallback with duplicate guard
+            $liveExists->execute([$stream]);
+            if ($liveExists->fetch()) {
                 $stats['live_skipped']++;
                 continue;
             }
 
-            $stmt = $pdo->prepare("
-                INSERT INTO channels (name, stream_url, category, logo_url, tvg_id, drm_type, license_key, license_url) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ");
-            $stmt->execute([
+            $liveInsert->execute([
                 $title,
                 $stream,
                 $channel['category'] ?? 'General',
@@ -206,10 +218,17 @@ function import_vod_from_m3u(PDO $pdo, array $entries): array {
                 $channel['drm']['license_url'] ?? null
             ]);
             $stats['live_imported']++;
+
+            // Log occasional progress to error_log for visibility
+            if (($stats['live_imported'] + $stats['movies_inserted'] + $stats['series_inserted']) % 1000 === 0) {
+                error_log("M3U import progress: " . ($stats['live_imported'] + $stats['movies_inserted'] + $stats['series_inserted']) . " items processed");
+            }
         } catch (Exception $e) {
             $stats['errors'][] = "Row {$index}: " . $e->getMessage();
         }
     }
+
+    $pdo->commit();
 
     return $stats;
 }

@@ -152,8 +152,20 @@ if (isset($_GET['action'])) {
     exit;
 }
 
-// Get all channels
-$channels = $pdo->query("SELECT * FROM channels ORDER BY created_at DESC")->fetchAll();
+// Pagination for channels list
+$page = max(1, (int)($_GET['page'] ?? 1));
+$perPage = 50;
+$offset = ($page - 1) * $perPage;
+
+$totalChannelsStmt = $pdo->query("SELECT COUNT(*) FROM channels");
+$totalChannels = (int)$totalChannelsStmt->fetchColumn();
+$totalPages = max(1, (int)ceil($totalChannels / $perPage));
+
+$stmt = $pdo->prepare("SELECT * FROM channels ORDER BY created_at DESC LIMIT :limit OFFSET :offset");
+$stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
+$stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+$stmt->execute();
+$channels = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Get channel stats
 $activeChannels = $pdo->query("SELECT COUNT(*) FROM channels WHERE is_active = true")->fetchColumn();
@@ -195,7 +207,7 @@ $categories = $pdo->query("SELECT DISTINCT category FROM channels WHERE category
         <div class="admin-header">
             <h2 style="margin: 0; color: #2c3e50;">Channel Management</h2>
             <div style="display: flex; gap: 15px; align-items: center;">
-                <span><?php echo count($channels); ?> total channels</span>
+                <span><?php echo $totalChannels; ?> total channels</span>
                 <span style="color: #27ae60;"><?php echo $activeChannels; ?> active</span>
                 <span style="color: #e74c3c;"><?php echo $inactiveChannels; ?> inactive</span>
                 <span style="color: #3498db;"><?php echo number_format($totalViews); ?> total views</span>
@@ -260,7 +272,7 @@ $categories = $pdo->query("SELECT DISTINCT category FROM channels WHERE category
 
         <div class="admin-card">
             <div class="admin-card-header">
-                <h4 style="margin: 0;"><i class="fas fa-list"></i> All Channels (<?php echo count($channels); ?>)</h4>
+                <h4 style="margin: 0;"><i class="fas fa-list"></i> All Channels (<?php echo $totalChannels; ?>)</h4>
                 <div style="display: flex; gap: 10px; align-items: center;">
                     <!-- Export Category Filter -->
                     <div style="display: flex; align-items: center; gap: 10px;">
@@ -372,6 +384,15 @@ $categories = $pdo->query("SELECT DISTINCT category FROM channels WHERE category
                             <?php endforeach; ?>
                         </tbody>
                     </table>
+                    <div style="display:flex; justify-content:center; gap:8px; margin-top:14px; align-items:center; flex-wrap:wrap;">
+                        <?php if ($page > 1): ?>
+                            <a class="btn btn-secondary" href="?page=<?php echo $page - 1; ?>">&laquo; Prev</a>
+                        <?php endif; ?>
+                        <span>Page <?php echo $page; ?> of <?php echo $totalPages; ?></span>
+                        <?php if ($page < $totalPages): ?>
+                            <a class="btn btn-secondary" href="?page=<?php echo $page + 1; ?>">Next &raquo;</a>
+                        <?php endif; ?>
+                    </div>
                 <?php endif; ?>
             </div>
         </div>
