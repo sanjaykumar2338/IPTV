@@ -6,18 +6,12 @@ $hostName = $_SERVER['HTTP_HOST'] ?? '';
 // Local only when using explicit local hostnames; CLI defaults to prod creds
 $isLocal = in_array($hostName, ['localhost', '127.0.0.1'], true) || str_contains($hostName, '.local');
 
-$dbConfig = $isLocal ? [
+$dbConfig = [
     'host' => '127.0.0.1',
     'name' => 'learningscriptin_stream',
     'user' => 'root',
     'pass' => ''
- ] : [
-    // primary host is localhost (socket); we will fall back to TCP in code below
-    'host' => 'localhost',
-    'name' => 'sanjay_iptv',
-    'user' => 'sanjay_iptv',
-    'pass' => '2n_oMJdrTxbj!KiN'
- ];
+];
 
 define('DB_HOST', $dbConfig['host']);
 define('DB_NAME', $dbConfig['name']);
