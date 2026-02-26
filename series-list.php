@@ -54,11 +54,45 @@ $genresAll = $pdo->query("SELECT DISTINCT genre FROM series WHERE genre IS NOT N
     <link rel="stylesheet" href="assets/css/style.css?v=<?php echo $asset_version; ?>">
     <link rel="stylesheet" href="assets/css/app.css?v=<?php echo $asset_version; ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .series-layout {
+            display: grid;
+            grid-template-columns: 260px 1fr;
+            gap: 18px;
+            align-items: start;
+        }
+        .series-filter {
+            position: sticky;
+            top: 90px;
+            align-self: start;
+        }
+        @media (max-width: 1024px) {
+            .series-layout {
+                grid-template-columns: minmax(0, 1fr);
+            }
+            .series-filter {
+                position: static;
+            }
+        }
+        @media (max-width: 640px) {
+            .series-layout {
+                gap: 12px;
+            }
+            .series-filter form {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+                gap: 10px;
+            }
+            .series-filter form > div {
+                margin-bottom: 0;
+            }
+        }
+    </style>
 </head>
 <body>
 <?php include __DIR__ . '/pages/partials/header.php'; ?>
-<main class="page-shell" style="display:grid; grid-template-columns: 260px 1fr; gap:18px;">
-    <aside class="glass-card" style="position:sticky; top:90px; align-self:start;">
+<main class="page-shell series-layout">
+    <aside class="glass-card series-filter">
         <h3 style="margin-top:0;">Filters</h3>
         <form method="GET">
             <div style="margin-bottom:12px;">
