@@ -270,19 +270,24 @@ $proxied_stream_url = getProxiedStreamUrl($stream_url);
     <script src="../assets/js/main.js"></script>
     
     <script>
-        // Initialize player with current stream
         document.addEventListener('DOMContentLoaded', function() {
             const drmConfig = {};
-            
+
             <?php if ($clearkey_config): ?>
             drmConfig.clearkey = {
                 '<?php echo $clearkey_config['key_id']; ?>': '<?php echo $clearkey_config['key']; ?>'
             };
             <?php endif; ?>
-            
-            // Initialize player
+
             window.iptvPlayer = new IPTVPlayer('video-player', {
                 debug: true,
+                loadTimeoutMs: 45000,
+                autoProxyFallback: true,
+                streaming: {
+                    bufferingGoal: 60,
+                    rebufferingGoal: 8,
+                    bufferBehind: 30
+                },
                 drm: {
                     widevine: {
                         licenseServer: '<?php echo $license_url ?: "https://widevine-proxy.appspot.com/proxy"; ?>'
@@ -292,48 +297,13 @@ $proxied_stream_url = getProxiedStreamUrl($stream_url);
                     }
                 }
             });
-            
-            // Load the stream
+
             window.iptvPlayer.loadStream('<?php echo $proxied_stream_url; ?>', drmConfig);
-            
-            // Initialize video ads manager after player is ready
-            window.iptvPlayer.player.addEventListener('loaded', function() {
-                // Pass channel category for targeted ads
-                window.videoAdManager = new VideoAdManager(window.iptvPlayer.player, {
-                    category: '<?php echo $channel_category; ?>'
-                });
+
+            window.videoAdManager = new VideoAdManager(window.iptvPlayer.videoElement, {
+                category: '<?php echo $channel_category; ?>'
             });
         });
-        
-        // Global player controls
-        window.playerControls = {
-            play: function() {
-                if (window.iptvPlayer) window.iptvPlayer.play();
-            },
-            
-            pause: function() {
-                if (window.iptvPlayer) window.iptvPlayer.pause();
-            },
-            
-            stop: function() {
-                if (window.iptvPlayer) window.iptvPlayer.stop();
-            },
-            
-            setVolume: function(volume) {
-                if (window.iptvPlayer) window.iptvPlayer.setVolume(volume);
-            },
-            
-            toggleFullscreen: function() {
-                const videoContainer = document.querySelector('.player-container');
-                if (!document.fullscreenElement) {
-                    videoContainer.requestFullscreen().catch(err => {
-                        console.error('Error attempting to enable fullscreen:', err);
-                    });
-                } else {
-                    document.exitFullscreen();
-                }
-            }
-        };
     </script>
 <script>
     (function(){
@@ -367,57 +337,5 @@ $proxied_stream_url = getProxiedStreamUrl($stream_url);
     })();
 </script>
 
-<script>
-    // Initialize video ads when player is ready
-    function initializeVideoAds() {
-        if (window.iptvPlayer && window.iptvPlayer.player) {
-            console.log('Initializing video ads manager...');
-            
-            // Initialize video ads manager
-            window.videoAdManager = new VideoAdManager(window.iptvPlayer.videoElement, {
-                category: '<?php echo $channel_category; ?>'
-            });
-            
-            // Also try to play pre-roll after a timeout as backup
-            setTimeout(() => {
-                if (window.videoAdManager && !window.videoAdManager.isPlayingAd) {
-                    window.videoAdManager.maybePlayPreRoll();
-                }
-            }, 2000);
-        } else {
-            // Retry after a short delay if player isn't ready
-            setTimeout(initializeVideoAds, 500);
-        }
-    }
-
-    document.addEventListener('DOMContentLoaded', function() {
-        const drmConfig = {};
-        
-        <?php if ($clearkey_config): ?>
-        drmConfig.clearkey = {
-            '<?php echo $clearkey_config['key_id']; ?>': '<?php echo $clearkey_config['key']; ?>'
-        };
-        <?php endif; ?>
-        
-        // Initialize player
-        window.iptvPlayer = new IPTVPlayer('video-player', {
-            debug: true,
-            drm: {
-                widevine: {
-                    licenseServer: '<?php echo $license_url ?: "https://widevine-proxy.appspot.com/proxy"; ?>'
-                },
-                playready: {
-                    licenseServer: '<?php echo $license_url ?: "https://playready.directtaps.net/pr/svc/rightsmanager.asmx"; ?>'
-                }
-            }
-        });
-        
-        // Load the stream
-        window.iptvPlayer.loadStream('<?php echo $proxied_stream_url; ?>', drmConfig);
-        
-        // Initialize video ads when player is ready
-        setTimeout(initializeVideoAds, 1000);
-    });
-</script>    
 </body>
 </html>

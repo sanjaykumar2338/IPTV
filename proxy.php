@@ -1,93 +1,318 @@
 <?php
-// Simple Proxy that actually works
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
 
-// Get the URL to proxy
-$url = $_GET['url'] ?? '';
-if (!$url) {
-    header("HTTP/1.0 400 Bad Request");
-    echo "No URL provided";
-    exit;
-}
+error_reporting(0);
+ini_set('display_errors', '0');
+@set_time_limit(0);
 
-// Decode URL
-$url = urldecode($url);
-
-// Validate URL
-if (!filter_var($url, FILTER_VALIDATE_URL)) {
-    header("HTTP/1.0 400 Bad Request");
-    echo "Invalid URL";
-    exit;
-}
-
-// Set appropriate headers
-if (strpos($url, '.m3u8') !== false) {
-    header('Content-Type: application/vnd.apple.mpegurl');
-} elseif (strpos($url, '.ts') !== false) {
-    header('Content-Type: video/mp2t');
-} else {
-    header('Content-Type: application/octet-stream');
-}
-
-// Enable CORS
 header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Allow-Methods: GET, HEAD, OPTIONS');
+header('Access-Control-Allow-Headers: Range, Origin, User-Agent, Accept, Referer, Content-Type');
 
-// Use cURL to fetch the content
-$ch = curl_init();
-curl_setopt_array($ch, [
-    CURLOPT_URL => $url,
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_FOLLOWLOCATION => true,
-    CURLOPT_SSL_VERIFYPEER => false,
-    CURLOPT_SSL_VERIFYHOST => false,
-    CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-    CURLOPT_TIMEOUT => 30,
-    CURLOPT_HEADER => false,
-    CURLOPT_FAILONERROR => true
-]);
-
-$response = curl_exec($ch);
-$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$error = curl_error($ch);
-curl_close($ch);
-
-if ($error) {
-    header("HTTP/1.0 500 Internal Server Error");
-    echo "Proxy Error: " . $error;
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
+    http_response_code(204);
     exit;
 }
 
-if ($http_code !== 200) {
-    header("HTTP/1.0 {$http_code}");
-    echo "HTTP Error: {$http_code}";
+$rawUrl = $_GET['url'] ?? '';
+if ($rawUrl === '') {
+    failWith(400, 'Missing stream URL.');
+}
+
+$targetUrl = rawurldecode($rawUrl);
+if (!isValidRemoteUrl($targetUrl)) {
+    failWith(400, 'Invalid stream URL.');
+}
+
+if (isLikelyPlaylistUrl($targetUrl)) {
+    proxyPlaylist($targetUrl);
     exit;
 }
 
-// If it's an M3U8 file, process it to proxy segment URLs
-if (strpos($url, '.m3u8') !== false && strpos($response, '#EXTM3U') !== false) {
-    $lines = explode("\n", $response);
-    $base_url = dirname($url) . '/';
-    
-    foreach ($lines as &$line) {
-        $line = trim($line);
-        if (empty($line)) continue;
-        
-        // If it's a segment URL (not a comment and not starting with #)
-        if ($line[0] !== '#' && !empty($line)) {
-            // Convert to absolute URL if relative
-            if (strpos($line, 'http') !== 0) {
-                $line = $base_url . ltrim($line, './');
-            }
-            // Proxy the segment URL
-            $line = "/proxy.php?url=" . urlencode($line);
+proxyBinary($targetUrl);
+exit;
+
+function proxyPlaylist(string $url): void
+{
+    $headers = buildUpstreamHeaders();
+    $ch = buildCurl($url, $headers, true);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+    $response = curl_exec($ch);
+    $curlErrNo = curl_errno($ch);
+    $curlErr = curl_error($ch);
+    $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $contentType = (string) (curl_getinfo($ch, CURLINFO_CONTENT_TYPE) ?: '');
+    $effectiveUrl = (string) (curl_getinfo($ch, CURLINFO_EFFECTIVE_URL) ?: $url);
+    curl_close($ch);
+
+    if ($curlErrNo !== 0) {
+        error_log('[proxy][playlist] upstream curl error host=' . (parse_url($url, PHP_URL_HOST) ?: 'unknown') . ' errno=' . $curlErrNo . ' err=' . $curlErr);
+        if ($curlErrNo === CURLE_OPERATION_TIMEDOUT || $curlErrNo === CURLE_COULDNT_CONNECT) {
+            failWith(504, 'Stream request timed out.');
         }
+        failWith(502, 'Proxy upstream request failed.');
     }
-    
-    $response = implode("\n", $lines);
+
+    if ($httpCode >= 400 || $response === false || $response === '') {
+        error_log('[proxy][playlist] upstream bad response host=' . (parse_url($url, PHP_URL_HOST) ?: 'unknown') . ' status=' . $httpCode);
+        failWith($httpCode > 0 ? $httpCode : 502, 'Upstream stream is unavailable.');
+    }
+
+    if (looksLikeM3U8Content($response, $contentType, $effectiveUrl)) {
+        $response = rewriteM3U8Playlist($response, $effectiveUrl);
+        header('Content-Type: application/vnd.apple.mpegurl');
+    } else {
+        header('Content-Type: ' . sanitizeHeaderValue($contentType !== '' ? $contentType : guessContentType($effectiveUrl)));
+    }
+
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    echo $response;
 }
 
-echo $response;
-?>
+function proxyBinary(string $url): void
+{
+    while (ob_get_level() > 0) {
+        @ob_end_flush();
+    }
+    @ob_implicit_flush(1);
+
+    $headers = buildUpstreamHeaders();
+    $ch = buildCurl($url, $headers, false);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, false);
+    $sentHeaders = false;
+    curl_setopt($ch, CURLOPT_WRITEFUNCTION, static function ($ch, $chunk) use (&$sentHeaders, $url) {
+        if (!$sentHeaders) {
+            header('Content-Type: ' . guessContentType($url));
+            header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+            $sentHeaders = true;
+        }
+        echo $chunk;
+        flush();
+        return strlen($chunk);
+    });
+
+    $ok = curl_exec($ch);
+    $curlErrNo = curl_errno($ch);
+    $curlErr = curl_error($ch);
+    $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($ok === false || $curlErrNo !== 0) {
+        error_log('[proxy][binary] upstream curl error host=' . (parse_url($url, PHP_URL_HOST) ?: 'unknown') . ' errno=' . $curlErrNo . ' err=' . $curlErr);
+        if (!$sentHeaders && !headers_sent()) {
+            failWith($curlErrNo === CURLE_OPERATION_TIMEDOUT ? 504 : 502, 'Stream request failed.');
+        }
+        exit;
+    }
+
+    if ($httpCode >= 400 && !headers_sent()) {
+        error_log('[proxy][binary] upstream bad response host=' . (parse_url($url, PHP_URL_HOST) ?: 'unknown') . ' status=' . $httpCode);
+        failWith($httpCode, 'Upstream returned an error.');
+    }
+}
+
+function buildCurl(string $url, array $headers, bool $isPlaylist)
+{
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_MAXREDIRS => 6,
+        CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_TIMEOUT => $isPlaylist ? 35 : 60,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => false,
+        CURLOPT_ENCODING => '',
+        CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+        CURLOPT_USERAGENT => $_SERVER['HTTP_USER_AGENT'] ?? 'Mozilla/5.0 (IPTV Proxy)',
+        CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_FAILONERROR => false
+    ]);
+    return $ch;
+}
+
+function buildUpstreamHeaders(): array
+{
+    $headers = [
+        'Accept: */*',
+        'Connection: keep-alive'
+    ];
+
+    if (!empty($_SERVER['HTTP_RANGE'])) {
+        $headers[] = 'Range: ' . $_SERVER['HTTP_RANGE'];
+    }
+
+    if (!empty($_SERVER['HTTP_REFERER'])) {
+        $headers[] = 'Referer: ' . $_SERVER['HTTP_REFERER'];
+    }
+
+    if (!empty($_SERVER['HTTP_ORIGIN'])) {
+        $headers[] = 'Origin: ' . $_SERVER['HTTP_ORIGIN'];
+    }
+
+    return $headers;
+}
+
+function rewriteM3U8Playlist(string $playlist, string $baseUrl): string
+{
+    $lines = preg_split("/\r\n|\n|\r/", $playlist) ?: [];
+    $rewritten = [];
+
+    foreach ($lines as $line) {
+        $trimmed = trim($line);
+        if ($trimmed === '') {
+            $rewritten[] = '';
+            continue;
+        }
+
+        if ($trimmed[0] === '#') {
+            // Rewrite URI attributes in tags like EXT-X-KEY and EXT-X-MAP.
+            $trimmed = preg_replace_callback('/URI="([^"]+)"/', static function (array $match) use ($baseUrl): string {
+                $resolved = resolveUrl($baseUrl, $match[1]);
+                return 'URI="' . buildProxyUrl($resolved) . '"';
+            }, $trimmed) ?? $trimmed;
+
+            $rewritten[] = $trimmed;
+            continue;
+        }
+
+        $absolute = resolveUrl($baseUrl, $trimmed);
+        $rewritten[] = buildProxyUrl($absolute);
+    }
+
+    return implode("\n", $rewritten);
+}
+
+function resolveUrl(string $baseUrl, string $relative): string
+{
+    if ($relative === '') {
+        return $baseUrl;
+    }
+
+    if (preg_match('#^https?://#i', $relative)) {
+        return $relative;
+    }
+
+    $base = parse_url($baseUrl);
+    if (!$base || empty($base['scheme']) || empty($base['host'])) {
+        return $relative;
+    }
+
+    $scheme = $base['scheme'];
+    $host = $base['host'];
+    $port = isset($base['port']) ? ':' . $base['port'] : '';
+    $basePath = $base['path'] ?? '/';
+
+    if (strpos($relative, '//') === 0) {
+        return $scheme . ':' . $relative;
+    }
+
+    if ($relative[0] === '#') {
+        return $baseUrl;
+    }
+
+    if ($relative[0] === '?') {
+        return $scheme . '://' . $host . $port . $basePath . $relative;
+    }
+
+    if ($relative[0] === '/') {
+        return $scheme . '://' . $host . $port . normalizePath($relative);
+    }
+
+    $dir = preg_replace('#/[^/]*$#', '/', $basePath) ?: '/';
+    $path = normalizePath($dir . $relative);
+    return $scheme . '://' . $host . $port . $path;
+}
+
+function normalizePath(string $path): string
+{
+    $segments = explode('/', $path);
+    $output = [];
+
+    foreach ($segments as $segment) {
+        if ($segment === '' || $segment === '.') {
+            continue;
+        }
+        if ($segment === '..') {
+            array_pop($output);
+            continue;
+        }
+        $output[] = $segment;
+    }
+
+    return '/' . implode('/', $output);
+}
+
+function buildProxyUrl(string $absoluteUrl): string
+{
+    return '/proxy.php?url=' . rawurlencode($absoluteUrl);
+}
+
+function isLikelyPlaylistUrl(string $url): bool
+{
+    $path = parse_url($url, PHP_URL_PATH) ?? '';
+    return (bool) preg_match('/\.(m3u8|m3u)$/i', $path);
+}
+
+function looksLikeM3U8Content(string $content, string $contentType, string $url): bool
+{
+    if (stripos($contentType, 'mpegurl') !== false) {
+        return true;
+    }
+    if (stripos($content, '#EXTM3U') === 0) {
+        return true;
+    }
+    return (bool) preg_match('/\.m3u8(?:\?|$)/i', $url);
+}
+
+function guessContentType(string $url): string
+{
+    $path = strtolower((string) (parse_url($url, PHP_URL_PATH) ?? ''));
+
+    if (str_ends_with($path, '.m3u8') || str_ends_with($path, '.m3u')) {
+        return 'application/vnd.apple.mpegurl';
+    }
+    if (str_ends_with($path, '.ts')) {
+        return 'video/mp2t';
+    }
+    if (str_ends_with($path, '.mpd')) {
+        return 'application/dash+xml';
+    }
+    if (str_ends_with($path, '.mp4')) {
+        return 'video/mp4';
+    }
+    return 'application/octet-stream';
+}
+
+function isValidRemoteUrl(string $url): bool
+{
+    if (!filter_var($url, FILTER_VALIDATE_URL)) {
+        return false;
+    }
+
+    $parts = parse_url($url);
+    if (!$parts || empty($parts['scheme']) || empty($parts['host'])) {
+        return false;
+    }
+
+    if (!in_array(strtolower($parts['scheme']), ['http', 'https'], true)) {
+        return false;
+    }
+
+    return true;
+}
+
+function sanitizeHeaderValue(string $value): string
+{
+    return trim(str_replace(["\r", "\n"], '', $value));
+}
+
+function failWith(int $status, string $message): void
+{
+    if (!headers_sent()) {
+        http_response_code($status);
+        header('Content-Type: text/plain; charset=UTF-8');
+    }
+    echo $message;
+    exit;
+}
