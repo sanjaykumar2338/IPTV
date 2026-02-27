@@ -41,7 +41,6 @@ function proxyPlaylist(string $url): void
     $curlErrNo = curl_errno($ch);
     $curlErr = curl_error($ch);
     $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $contentType = (string) (curl_getinfo($ch, CURLINFO_CONTENT_TYPE) ?: '');
     $effectiveUrl = (string) (curl_getinfo($ch, CURLINFO_EFFECTIVE_URL) ?: $url);
     curl_close($ch);
 
@@ -58,13 +57,25 @@ function proxyPlaylist(string $url): void
         failWith($httpCode > 0 ? $httpCode : 502, 'Upstream stream is unavailable.');
     }
 
-    if (looksLikeM3U8Content($response, $contentType, $effectiveUrl)) {
-        $response = rewriteM3U8Playlist($response, $effectiveUrl);
-        header('Content-Type: application/vnd.apple.mpegurl');
-    } else {
-        header('Content-Type: ' . sanitizeHeaderValue($contentType !== '' ? $contentType : guessContentType($effectiveUrl)));
+    $providerError = extractUpstreamProviderError($response);
+    if ($providerError !== null) {
+        $status = (int)($providerError['status'] ?? 502);
+        if ($status < 400 || $status > 599) {
+            $status = 502;
+        }
+
+        error_log('[proxy][playlist] provider error host=' . (parse_url($url, PHP_URL_HOST) ?: 'unknown') . ' status=' . $status . ' error=' . ($providerError['error'] ?? 'unknown'));
+        failWith($status, 'Upstream provider rejected the stream.');
     }
 
+    if (!isM3U8Payload($response)) {
+        $sample = substr(trim($response), 0, 120);
+        error_log('[proxy][playlist] invalid payload host=' . (parse_url($url, PHP_URL_HOST) ?: 'unknown') . ' sample=' . sanitizeHeaderValue($sample));
+        failWith(502, 'Upstream returned invalid playlist data.');
+    }
+
+    $response = rewriteM3U8Playlist($response, $effectiveUrl);
+    header('Content-Type: application/vnd.apple.mpegurl');
     header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
     echo $response;
 }
@@ -254,15 +265,38 @@ function isLikelyPlaylistUrl(string $url): bool
     return (bool) preg_match('/\.(m3u8|m3u)$/i', $path);
 }
 
-function looksLikeM3U8Content(string $content, string $contentType, string $url): bool
+function isM3U8Payload(string $content): bool
 {
-    if (stripos($contentType, 'mpegurl') !== false) {
-        return true;
+    $trimmed = ltrim($content);
+    return $trimmed !== '' && str_starts_with($trimmed, '#EXTM3U');
+}
+
+function extractUpstreamProviderError(string $content): ?array
+{
+    $trimmed = trim($content);
+    if ($trimmed === '') {
+        return null;
     }
-    if (stripos($content, '#EXTM3U') === 0) {
-        return true;
+
+    $firstChar = $trimmed[0];
+    if ($firstChar !== '{' && $firstChar !== '[') {
+        return null;
     }
-    return (bool) preg_match('/\.m3u8(?:\?|$)/i', $url);
+
+    $decoded = json_decode($trimmed, true);
+    if (!is_array($decoded)) {
+        return null;
+    }
+
+    if (!isset($decoded['error']) && !isset($decoded['message']) && !isset($decoded['status'])) {
+        return null;
+    }
+
+    return [
+        'status' => isset($decoded['status']) ? (int)$decoded['status'] : null,
+        'error' => isset($decoded['error']) ? (string)$decoded['error'] : '',
+        'message' => isset($decoded['message']) ? (string)$decoded['message'] : '',
+    ];
 }
 
 function guessContentType(string $url): string
