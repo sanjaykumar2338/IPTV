@@ -3,6 +3,7 @@ include '../../includes/config.php';
 include '../../includes/auth.php';
 include '../../includes/m3u-parser.php';
 include '../../includes/vod_import.php';
+include '../../includes/provider_validator.php';
 include '../../pages/import_logger.php';
 
 import_log("IMPORT START (api/import_m3u.php)");
@@ -75,6 +76,23 @@ try {
     
     if (empty($channels)) {
         throw new Exception('No channels found in the M3U file');
+    }
+
+    $precheck = provider_precheck_entries($channels);
+    import_log("PROVIDER PRECHECK (api/import_m3u.php)", [
+        'ok' => $precheck['ok'],
+        'message' => $precheck['message'],
+        'results' => $precheck['results']
+    ]);
+    if (!$precheck['ok']) {
+        @unlink($filePath);
+        http_response_code(422);
+        echo json_encode([
+            'success' => false,
+            'error' => $precheck['message'],
+            'provider_checks' => $precheck['results']
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        exit;
     }
     
     $importStats = import_vod_from_m3u($pdo, $channels);

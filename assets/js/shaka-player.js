@@ -350,6 +350,42 @@ class IPTVPlayer {
         const code = error && (typeof error.code === "number" || typeof error.code === "string")
             ? error.code
             : null;
+        const httpStatus = this.extractHttpStatus(error);
+
+        if (httpStatus === 401) {
+            return {
+                code,
+                message: "Provider rejected the stream (401). Please update M3U credentials."
+            };
+        }
+
+        if (httpStatus === 403) {
+            return {
+                code,
+                message: "Provider blocked this stream (403). Check provider IP/referrer restrictions."
+            };
+        }
+
+        if (httpStatus === 404) {
+            return {
+                code,
+                message: "Provider stream is missing (404). Please refresh content with a valid link."
+            };
+        }
+
+        if (httpStatus === 504) {
+            return {
+                code,
+                message: "Provider timeout (504). Please retry in a few seconds."
+            };
+        }
+
+        if (httpStatus === 502) {
+            return {
+                code,
+                message: "Provider upstream error (502). Please retry or switch stream."
+            };
+        }
 
         if (code === "LOAD_TIMEOUT") {
             return {
@@ -390,6 +426,44 @@ class IPTVPlayer {
             code,
             message: "We could not play this stream right now. Please retry."
         };
+    }
+
+    extractHttpStatus(error) {
+        const candidates = [];
+
+        if (error && typeof error.status === "number") {
+            candidates.push(error.status);
+        }
+
+        if (error && Array.isArray(error.data)) {
+            for (const item of error.data) {
+                if (typeof item === "number") {
+                    candidates.push(item);
+                } else if (item && typeof item === "object" && typeof item.status === "number") {
+                    candidates.push(item.status);
+                } else if (typeof item === "string") {
+                    const matched = item.match(/\b(401|403|404|502|504)\b/);
+                    if (matched) {
+                        candidates.push(Number(matched[1]));
+                    }
+                }
+            }
+        }
+
+        if (error && typeof error.message === "string") {
+            const matched = error.message.match(/\b(401|403|404|502|504)\b/);
+            if (matched) {
+                candidates.push(Number(matched[1]));
+            }
+        }
+
+        for (const status of candidates) {
+            if (status >= 100 && status <= 599) {
+                return status;
+            }
+        }
+
+        return null;
     }
 
     showError(message, code = null) {

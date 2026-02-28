@@ -3,6 +3,7 @@ include '../includes/config.php';
 include '../includes/auth.php';
 include '../includes/functions.php';
 include '../includes/m3u-parser.php';
+include '../includes/provider_validator.php';
 include '../pages/import_logger.php';
 requireAdminAuth();
 
@@ -126,22 +127,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['m3u_file'])) {
             $stats = $parser->getStats();
             import_log("PARSE DONE", ['channels' => count($channels), 'stats' => $stats]);
 
-            // VOD-aware import
-            include_once '../includes/vod_import.php';
-            $importStats = import_vod_from_m3u($pdo, $channels);
-            import_log("IMPORT DONE (channels.php)", $importStats);
+            $precheck = provider_precheck_entries($channels);
+            import_log("PROVIDER PRECHECK (channels.php)", [
+                'ok' => $precheck['ok'],
+                'message' => $precheck['message'],
+                'results' => $precheck['results']
+            ]);
 
-            $successParts = [];
-            if ($importStats['live_imported'] > 0) $successParts[] = "{$importStats['live_imported']} live channels";
-            if ($importStats['movies_inserted'] > 0) $successParts[] = "{$importStats['movies_inserted']} movies";
-            if ($importStats['series_inserted'] > 0) $successParts[] = "{$importStats['series_inserted']} series";
-            if ($importStats['episodes_inserted'] > 0) $successParts[] = "{$importStats['episodes_inserted']} episodes";
-            $success = "Imported: " . implode(', ', $successParts ?: ['nothing new']) . ".";
-            if ($importStats['live_skipped'] > 0) $success .= " Skipped {$importStats['live_skipped']} duplicate live streams.";
-            if (!empty($importStats['errors'])) {
-                $success .= " With " . count($importStats['errors']) . " minor errors.";
+            if (!$precheck['ok']) {
+                $error = $precheck['message'];
+            } else {
+                // VOD-aware import
+                include_once '../includes/vod_import.php';
+                $importStats = import_vod_from_m3u($pdo, $channels);
+                import_log("IMPORT DONE (channels.php)", $importStats);
+
+                $successParts = [];
+                if ($importStats['live_imported'] > 0) $successParts[] = "{$importStats['live_imported']} live channels";
+                if ($importStats['movies_inserted'] > 0) $successParts[] = "{$importStats['movies_inserted']} movies";
+                if ($importStats['series_inserted'] > 0) $successParts[] = "{$importStats['series_inserted']} series";
+                if ($importStats['episodes_inserted'] > 0) $successParts[] = "{$importStats['episodes_inserted']} episodes";
+                $success = "Imported: " . implode(', ', $successParts ?: ['nothing new']) . ".";
+                if ($importStats['live_skipped'] > 0) $success .= " Skipped {$importStats['live_skipped']} duplicate live streams.";
+                if (!empty($importStats['errors'])) {
+                    $success .= " With " . count($importStats['errors']) . " minor errors.";
+                }
             }
-            unlink($filePath); // Clean up
+            @unlink($filePath); // Clean up
         } catch (Exception $e) {
             $error = "Error parsing M3U file: " . $e->getMessage();
         }
@@ -295,11 +307,29 @@ $categories = $pdo->query("SELECT DISTINCT category FROM channels WHERE category
                         <div class="file-upload">
                             <i class="fas fa-cloud-upload-alt" style="font-size: 3rem; color: #bdc3c7; margin-bottom: 15px;"></i>
                             <p>Drag & drop your M3U file here or click to browse</p>
-                            <input type="file" name="m3u_file" accept=".m3u,.m3u8" required>
-                            <button type="button" class="btn btn-primary" onclick="document.querySelector('input[type=file]').click()">
+                            <input type="file" id="m3uFileInput" name="m3u_file" accept=".m3u,.m3u8" required>
+                            <button type="button" class="btn btn-primary" onclick="document.getElementById('m3uFileInput').click()">
                                 <i class="fas fa-folder-open"></i> Choose File
                             </button>
                         </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Provider pre-check</label>
+                        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                            <input
+                                type="url"
+                                id="providerTestUrl"
+                                placeholder="Paste sample stream URL to test"
+                                style="flex:1 1 420px; min-width:220px; padding:10px; border:1px solid #dcdcdc; border-radius:6px;"
+                            >
+                            <button type="button" id="testProviderBtn" class="btn btn-warning">
+                                <i class="fas fa-vial"></i> Test Provider
+                            </button>
+                        </div>
+                        <small style="color:#6c757d; display:block; margin-top:8px;">
+                            Tip: after selecting a file, first sample URL is auto-filled for quick validation.
+                        </small>
+                        <div id="providerTestResult" style="display:none; margin-top:10px; padding:10px 12px; border-radius:6px;"></div>
                     </div>
                     <button type="submit" name="import_m3u" class="btn btn-success">
                         <i class="fas fa-upload"></i> Import Channels
@@ -437,11 +467,104 @@ $categories = $pdo->query("SELECT DISTINCT category FROM channels WHERE category
     </div>
 
     <script>
-        // File upload preview
-        document.querySelector('input[type=file]').addEventListener('change', function(e) {
+        const fileInput = document.getElementById('m3uFileInput');
+        const providerUrlInput = document.getElementById('providerTestUrl');
+        const providerBtn = document.getElementById('testProviderBtn');
+        const providerResult = document.getElementById('providerTestResult');
+
+        function escapeHtml(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function renderProviderResult(payload) {
+            const status = Number(payload.status || 0);
+            const ok = Boolean(payload.ok);
+            const color = ok ? '#155724' : '#721c24';
+            const background = ok ? '#d4edda' : '#f8d7da';
+            const border = ok ? '#c3e6cb' : '#f5c6cb';
+            const icon = ok ? 'fa-check-circle' : 'fa-times-circle';
+            const sample = payload.sample ? `<div style="margin-top:6px;"><strong>Sample:</strong> <code>${escapeHtml(payload.sample)}</code></div>` : '';
+            const message = escapeHtml(payload.message || '');
+
+            providerResult.style.display = 'block';
+            providerResult.style.color = color;
+            providerResult.style.background = background;
+            providerResult.style.border = `1px solid ${border}`;
+            providerResult.innerHTML = `
+                <div><i class="fas ${icon}"></i> <strong>Status ${status}</strong> - ${message}</div>
+                ${sample}
+            `;
+        }
+
+        async function runProviderTest(url) {
+            const streamUrl = (url || '').trim();
+            if (!streamUrl) {
+                renderProviderResult({ ok: false, status: 400, message: 'Please enter a stream URL first.' });
+                return;
+            }
+
+            providerBtn.disabled = true;
+            providerBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
+
+            try {
+                const params = new URLSearchParams();
+                params.set('url', streamUrl);
+
+                const response = await fetch('test_provider.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: params.toString()
+                });
+
+                const payload = await response.json();
+                renderProviderResult(payload);
+            } catch (error) {
+                renderProviderResult({
+                    ok: false,
+                    status: 502,
+                    message: 'Could not run provider test from server.'
+                });
+            } finally {
+                providerBtn.disabled = false;
+                providerBtn.innerHTML = '<i class="fas fa-vial"></i> Test Provider';
+            }
+        }
+
+        function extractFirstSampleUrl(file) {
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function() {
+                const content = String(reader.result || '');
+                const urls = content
+                    .split(/\r?\n/)
+                    .map((line) => line.trim())
+                    .filter((line) => line && line[0] !== '#' && /^https?:\/\//i.test(line))
+                    .slice(0, 5);
+
+                if (urls.length > 0 && !providerUrlInput.value.trim()) {
+                    providerUrlInput.value = urls[0];
+                    runProviderTest(urls[0]);
+                }
+            };
+            reader.readAsText(file.slice(0, 1024 * 1024));
+        }
+
+        // File upload preview + auto provider sample test
+        fileInput.addEventListener('change', function() {
             if (this.files.length > 0) {
                 document.querySelector('.file-upload p').textContent = 'Selected: ' + this.files[0].name;
+                extractFirstSampleUrl(this.files[0]);
             }
+        });
+
+        providerBtn.addEventListener('click', function() {
+            runProviderTest(providerUrlInput.value);
         });
 
         // Export category filter functionality

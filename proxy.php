@@ -46,32 +46,28 @@ function proxyPlaylist(string $url): void
 
     if ($curlErrNo !== 0) {
         error_log('[proxy][playlist] upstream curl error host=' . (parse_url($url, PHP_URL_HOST) ?: 'unknown') . ' errno=' . $curlErrNo . ' err=' . $curlErr);
-        if ($curlErrNo === CURLE_OPERATION_TIMEDOUT || $curlErrNo === CURLE_COULDNT_CONNECT) {
-            failWith(504, 'Stream request timed out.');
-        }
-        failWith(502, 'Proxy upstream request failed.');
+        $status = in_array($curlErrNo, [CURLE_OPERATION_TIMEDOUT, CURLE_COULDNT_CONNECT, CURLE_COULDNT_RESOLVE_HOST], true) ? 504 : 502;
+        failWith($status, proxyProviderStatusMessage($status));
     }
 
     if ($httpCode >= 400 || $response === false || $response === '') {
         error_log('[proxy][playlist] upstream bad response host=' . (parse_url($url, PHP_URL_HOST) ?: 'unknown') . ' status=' . $httpCode);
-        failWith($httpCode > 0 ? $httpCode : 502, 'Upstream stream is unavailable.');
+        $status = proxyNormalizeProviderStatus($httpCode);
+        failWith($status, proxyProviderStatusMessage($status));
     }
 
     $providerError = extractUpstreamProviderError($response);
     if ($providerError !== null) {
-        $status = (int)($providerError['status'] ?? 502);
-        if ($status < 400 || $status > 599) {
-            $status = 502;
-        }
+        $status = proxyNormalizeProviderStatus((int)($providerError['status'] ?? 502));
 
         error_log('[proxy][playlist] provider error host=' . (parse_url($url, PHP_URL_HOST) ?: 'unknown') . ' status=' . $status . ' error=' . ($providerError['error'] ?? 'unknown'));
-        failWith($status, 'Upstream provider rejected the stream.');
+        failWith($status, proxyProviderStatusMessage($status));
     }
 
     if (!isM3U8Payload($response)) {
         $sample = substr(trim($response), 0, 120);
         error_log('[proxy][playlist] invalid payload host=' . (parse_url($url, PHP_URL_HOST) ?: 'unknown') . ' sample=' . sanitizeHeaderValue($sample));
-        failWith(502, 'Upstream returned invalid playlist data.');
+        failWith(502, proxyProviderStatusMessage(502));
     }
 
     $response = rewriteM3U8Playlist($response, $effectiveUrl);
@@ -111,14 +107,16 @@ function proxyBinary(string $url): void
     if ($ok === false || $curlErrNo !== 0) {
         error_log('[proxy][binary] upstream curl error host=' . (parse_url($url, PHP_URL_HOST) ?: 'unknown') . ' errno=' . $curlErrNo . ' err=' . $curlErr);
         if (!$sentHeaders && !headers_sent()) {
-            failWith($curlErrNo === CURLE_OPERATION_TIMEDOUT ? 504 : 502, 'Stream request failed.');
+            $status = in_array($curlErrNo, [CURLE_OPERATION_TIMEDOUT, CURLE_COULDNT_CONNECT, CURLE_COULDNT_RESOLVE_HOST], true) ? 504 : 502;
+            failWith($status, proxyProviderStatusMessage($status));
         }
         exit;
     }
 
     if ($httpCode >= 400 && !headers_sent()) {
         error_log('[proxy][binary] upstream bad response host=' . (parse_url($url, PHP_URL_HOST) ?: 'unknown') . ' status=' . $httpCode);
-        failWith($httpCode, 'Upstream returned an error.');
+        $status = proxyNormalizeProviderStatus($httpCode);
+        failWith($status, proxyProviderStatusMessage($status));
     }
 }
 
@@ -257,6 +255,32 @@ function normalizePath(string $path): string
 function buildProxyUrl(string $absoluteUrl): string
 {
     return '/proxy.php?url=' . rawurlencode($absoluteUrl);
+}
+
+function proxyNormalizeProviderStatus(int $status): int
+{
+    if (in_array($status, [401, 403, 404], true)) {
+        return $status;
+    }
+
+    if ($status === 408) {
+        return 504;
+    }
+
+    if ($status >= 500 || $status <= 0) {
+        return 502;
+    }
+
+    return 502;
+}
+
+function proxyProviderStatusMessage(int $status): string
+{
+    if ($status === 401) return 'Provider unauthorized';
+    if ($status === 403) return 'Provider forbidden';
+    if ($status === 404) return 'Provider stream missing';
+    if ($status === 504) return 'Provider timeout';
+    return 'Provider upstream error';
 }
 
 function isLikelyPlaylistUrl(string $url): bool
