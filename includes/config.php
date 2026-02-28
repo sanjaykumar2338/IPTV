@@ -21,6 +21,7 @@ define('DB_HOST', $dbConfig['host']);
 define('DB_NAME', $dbConfig['name']);
 define('DB_USER', $dbConfig['user']);
 define('DB_PASS', $dbConfig['pass']);
+define('ENABLE_LEGACY_UNASSIGNED_WIPE', false);
 
 // Site Configuration
 $site_config = [
@@ -54,6 +55,19 @@ function createTables($pdo) {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
+        "CREATE TABLE IF NOT EXISTS providers (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(190) NOT NULL,
+            provider_type VARCHAR(40) NOT NULL DEFAULT 'm3u',
+            host VARCHAR(190),
+            source_url TEXT,
+            provider_key VARCHAR(190) NOT NULL UNIQUE,
+            is_active TINYINT(1) DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_provider_host (host)
+        ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
         "CREATE TABLE IF NOT EXISTS channels (
             id INT AUTO_INCREMENT PRIMARY KEY,
             name VARCHAR(255) NOT NULL,
@@ -64,9 +78,11 @@ function createTables($pdo) {
             drm_type VARCHAR(50),
             license_key TEXT,
             license_url TEXT,
+            provider_id INT NULL,
             is_active BOOLEAN DEFAULT true,
             views INT DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_channels_provider (provider_id)
         ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
         "CREATE TABLE IF NOT EXISTS video_ads (
@@ -138,10 +154,12 @@ function createTables($pdo) {
             duration_minutes INT,
             trailer_url VARCHAR(500),
             stream_url TEXT,
+            provider_id INT NULL,
             is_featured TINYINT(1) DEFAULT 0,
             popularity INT DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_movies_provider (provider_id)
         ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
         "CREATE TABLE IF NOT EXISTS series (
@@ -155,10 +173,12 @@ function createTables($pdo) {
             rating DECIMAL(3,1),
             seasons INT DEFAULT 1,
             trailer_url VARCHAR(500),
+            provider_id INT NULL,
             is_featured TINYINT(1) DEFAULT 0,
             popularity INT DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_series_provider (provider_id)
         ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
         "CREATE TABLE IF NOT EXISTS episodes (
@@ -171,8 +191,10 @@ function createTables($pdo) {
             duration_minutes INT,
             stream_url TEXT,
             thumbnail_url VARCHAR(500),
+            provider_id INT NULL,
             air_date DATE NULL,
             INDEX series_season_idx (series_id, season_number),
+            INDEX idx_episodes_provider (provider_id),
             CONSTRAINT fk_episode_series FOREIGN KEY (series_id) REFERENCES series(id) ON DELETE CASCADE
         ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 

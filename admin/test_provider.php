@@ -16,7 +16,7 @@ if (!isAdminLoggedIn()) {
     exit;
 }
 
-if (!in_array($_SERVER['REQUEST_METHOD'] ?? 'GET', ['GET', 'POST'], true)) {
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
     http_response_code(405);
     echo json_encode([
         'ok' => false,
@@ -26,7 +26,9 @@ if (!in_array($_SERVER['REQUEST_METHOD'] ?? 'GET', ['GET', 'POST'], true)) {
     exit;
 }
 
-$url = trim((string)($_POST['url'] ?? $_GET['url'] ?? ''));
+require_valid_csrf($_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? null);
+
+$url = trim((string)($_POST['url'] ?? ''));
 if ($url === '') {
     http_response_code(400);
     echo json_encode([
@@ -43,7 +45,7 @@ $result = provider_validate_url($url, [
 ]);
 
 provider_log_event('PROVIDER TEST (manual)', [
-    'url' => $url,
+    'url' => provider_mask_url($url),
     'result' => $result
 ]);
 
@@ -61,4 +63,3 @@ echo json_encode([
     'sample' => (string)($result['sample'] ?? ''),
     'effective_url' => (string)($result['effective_url'] ?? ''),
 ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-

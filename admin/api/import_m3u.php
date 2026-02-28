@@ -4,6 +4,7 @@ include '../../includes/auth.php';
 include '../../includes/m3u-parser.php';
 include '../../includes/vod_import.php';
 include '../../includes/provider_validator.php';
+include '../../includes/provider_cleanup.php';
 include '../../pages/import_logger.php';
 
 import_log("IMPORT START (api/import_m3u.php)");
@@ -39,6 +40,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['error' => 'Method not allowed']);
     exit;
 }
+
+require_valid_csrf($_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? null);
 
 try {
     // Check if file was uploaded
@@ -78,6 +81,8 @@ try {
         throw new Exception('No channels found in the M3U file');
     }
 
+    provider_ensure_schema($pdo);
+
     $precheck = provider_precheck_entries($channels);
     import_log("PROVIDER PRECHECK (api/import_m3u.php)", [
         'ok' => $precheck['ok'],
@@ -94,8 +99,36 @@ try {
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
         exit;
     }
-    
-    $importStats = import_vod_from_m3u($pdo, $channels);
+
+    $replaceProviderData = !isset($_POST['replace_provider_data']) || $_POST['replace_provider_data'] === '1';
+    $confirmLegacyWipe = isset($_POST['confirm_legacy_wipe']) && $_POST['confirm_legacy_wipe'] === '1';
+    $allowLegacyWipe = ENABLE_LEGACY_UNASSIGNED_WIPE && $confirmLegacyWipe;
+    $providerMeta = provider_detect_from_entries($channels, (string)($_FILES['m3u_file']['name'] ?? 'Imported Provider'));
+    $provider = provider_get_or_create($pdo, $providerMeta);
+    $providerId = (int)$provider['id'];
+    $providerSafe = provider_safe_summary($provider);
+
+    if ($allowLegacyWipe) {
+        $legacyCounts = legacyCatalogCounts($pdo);
+        $legacyDeleted = wipeLegacyUnassignedCatalog($pdo);
+        import_log("LEGACY UNASSIGNED WIPE (api/import_m3u.php)", [
+            'before' => $legacyCounts,
+            'deleted' => $legacyDeleted
+        ]);
+    }
+
+    if ($replaceProviderData) {
+        $replaceSummary = replaceProviderCatalogAtomically($pdo, $providerId, $channels, [
+            'provider_scope' => provider_scope_from_id($providerId),
+            'commit_every' => 100
+        ]);
+        $importStats = $replaceSummary['import'];
+    } else {
+        $importStats = import_vod_from_m3u($pdo, $channels, 100, [
+            'provider_id' => $providerId,
+            'provider_scope' => provider_scope_from_id($providerId)
+        ]);
+    }
     import_log("IMPORT DONE (API)", $importStats);
     unlink($filePath); // clean up
     
@@ -112,9 +145,10 @@ try {
             'episodes_updated' => $importStats['episodes_updated'],
             'errors' => $importStats['errors'],
             'stats' => $stats,
-            'totalProcessed' => count($channels)
+            'totalProcessed' => count($channels),
+            'provider' => $providerSafe
         ],
-        'message' => "Imported live: {$importStats['live_imported']} (skipped {$importStats['live_skipped']}), movies: {$importStats['movies_inserted']} new / {$importStats['movies_updated']} updated, series: {$importStats['series_inserted']} new / {$importStats['series_updated']} updated"
+        'message' => "Provider import complete. Live: {$importStats['live_imported']} (skipped {$importStats['live_skipped']}), movies: {$importStats['movies_inserted']} new / {$importStats['movies_updated']} updated, series: {$importStats['series_inserted']} new / {$importStats['series_updated']} updated"
     ];
     
 } catch (Exception $e) {

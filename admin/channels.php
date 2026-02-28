@@ -4,8 +4,29 @@ include '../includes/auth.php';
 include '../includes/functions.php';
 include '../includes/m3u-parser.php';
 include '../includes/provider_validator.php';
+include '../includes/provider_cleanup.php';
 include '../pages/import_logger.php';
 requireAdminAuth();
+
+try {
+    provider_ensure_schema($pdo);
+} catch (Throwable $e) {
+    $error = "Provider schema setup failed: " . $e->getMessage();
+}
+
+if (isset($_GET['success_msg'])) {
+    $success = (string)$_GET['success_msg'];
+}
+if (isset($_GET['error_msg'])) {
+    $error = (string)$_GET['error_msg'];
+}
+
+get_csrf_token();
+$destructiveActions = ['toggle', 'delete', 'delete_all', 'delete_inactive', 'wipe_provider', 'delete_provider', 'run_legacy_wipe'];
+if (isset($_GET['action']) && in_array((string)$_GET['action'], $destructiveActions, true)) {
+    http_response_code(405);
+    exit('Method not allowed. Use POST.');
+}
 
 // Handle export requests
 if (isset($_GET['export'])) {
@@ -46,12 +67,12 @@ if (isset($_GET['export'])) {
                     $channel['id'],
                     $channel['name'],
                     $channel['category'],
-                    $channel['stream_url'],
+                    redact_provider_secret((string)$channel['stream_url']),
                     $channel['logo_url'],
                     $channel['tvg_id'],
                     $channel['drm_type'],
-                    $channel['license_key'],
-                    $channel['license_url'],
+                    redact_provider_secret((string)$channel['license_key']),
+                    redact_provider_secret((string)$channel['license_url']),
                     $channel['views'],
                     $channel['is_active'] ? 'Yes' : 'No',
                     $channel['created_at']
@@ -65,6 +86,12 @@ if (isset($_GET['export'])) {
             // Export as JSON
             header('Content-Type: application/json; charset=utf-8');
             header('Content-Disposition: attachment; filename=channels_export_' . date('Y-m-d') . '.json');
+            foreach ($channels as &$channel) {
+                $channel['stream_url'] = redact_provider_secret((string)($channel['stream_url'] ?? ''));
+                $channel['license_key'] = redact_provider_secret((string)($channel['license_key'] ?? ''));
+                $channel['license_url'] = redact_provider_secret((string)($channel['license_url'] ?? ''));
+            }
+            unset($channel);
             echo json_encode($channels, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
             exit;
             
@@ -79,6 +106,7 @@ if (isset($_GET['export'])) {
 
 // Handle M3U import
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['m3u_file'])) {
+    require_valid_csrf($_POST['csrf_token'] ?? null);
     $uploadDir = realpath(__DIR__ . '/../uploads') ?: (__DIR__ . '/../uploads');
     // normalise with trailing slash so file paths are valid
     $uploadDir = rtrim($uploadDir, "/\\") . DIRECTORY_SEPARATOR;
@@ -137,9 +165,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['m3u_file'])) {
             if (!$precheck['ok']) {
                 $error = $precheck['message'];
             } else {
+                $replaceProviderData = !isset($_POST['replace_provider_data']) || $_POST['replace_provider_data'] === '1';
+                $confirmLegacyWipe = isset($_POST['confirm_legacy_wipe']) && $_POST['confirm_legacy_wipe'] === '1';
+                $allowLegacyWipe = ENABLE_LEGACY_UNASSIGNED_WIPE && $confirmLegacyWipe;
+                $fallbackName = trim((string)($upload['name'] ?? 'Imported Provider'));
+                $providerMeta = provider_detect_from_entries($channels, $fallbackName);
+                $provider = provider_get_or_create($pdo, $providerMeta);
+                $providerId = (int)$provider['id'];
+                $providerSafe = provider_safe_summary($provider);
+
+                if ($allowLegacyWipe) {
+                    $legacyCounts = legacyCatalogCounts($pdo);
+                    $legacyDeleted = wipeLegacyUnassignedCatalog($pdo);
+                    import_log("LEGACY UNASSIGNED WIPE (channels.php)", [
+                        'before' => $legacyCounts,
+                        'deleted' => $legacyDeleted
+                    ]);
+                }
+
                 // VOD-aware import
                 include_once '../includes/vod_import.php';
-                $importStats = import_vod_from_m3u($pdo, $channels);
+                if ($replaceProviderData) {
+                    $replaceSummary = replaceProviderCatalogAtomically($pdo, $providerId, $channels, [
+                        'provider_scope' => provider_scope_from_id($providerId),
+                        'commit_every' => 100
+                    ]);
+                    $importStats = $replaceSummary['import'];
+                } else {
+                    $importStats = import_vod_from_m3u($pdo, $channels, 100, [
+                        'provider_id' => $providerId,
+                        'provider_scope' => provider_scope_from_id($providerId)
+                    ]);
+                }
                 import_log("IMPORT DONE (channels.php)", $importStats);
 
                 $successParts = [];
@@ -147,7 +204,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['m3u_file'])) {
                 if ($importStats['movies_inserted'] > 0) $successParts[] = "{$importStats['movies_inserted']} movies";
                 if ($importStats['series_inserted'] > 0) $successParts[] = "{$importStats['series_inserted']} series";
                 if ($importStats['episodes_inserted'] > 0) $successParts[] = "{$importStats['episodes_inserted']} episodes";
-                $success = "Imported: " . implode(', ', $successParts ?: ['nothing new']) . ".";
+                $providerName = (string)($providerSafe['name'] ?? ('Provider #' . $providerId));
+                $success = "Provider {$providerName} imported: " . implode(', ', $successParts ?: ['nothing new']) . ".";
                 if ($importStats['live_skipped'] > 0) $success .= " Skipped {$importStats['live_skipped']} duplicate live streams.";
                 if (!empty($importStats['errors'])) {
                     $success .= " With " . count($importStats['errors']) . " minor errors.";
@@ -174,32 +232,130 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['m3u_file'])) {
     }
 }
 
-// Handle channel actions
-if (isset($_GET['action'])) {
-    $channelId = $_GET['id'] ?? 0;
-    
-    switch ($_GET['action']) {
-        case 'toggle':
-            $stmt = $pdo->prepare("UPDATE channels SET is_active = NOT is_active WHERE id = ?");
-            $stmt->execute([$channelId]);
-            break;
-        case 'delete':
-            $stmt = $pdo->prepare("DELETE FROM channels WHERE id = ?");
-            $stmt->execute([$channelId]);
-            break;
-        case 'delete_all':
-            $stmt = $pdo->prepare("DELETE FROM channels");
-            $stmt->execute();
-            $success = "All channels have been deleted!";
-            break;
-        case 'delete_inactive':
-            $stmt = $pdo->prepare("DELETE FROM channels WHERE is_active = false");
-            $stmt->execute();
-            $success = "All inactive channels have been deleted!";
-            break;
+// Handle channel actions (POST + CSRF only)
+$legacyPreview = null;
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && !isset($_FILES['m3u_file'])) {
+    require_valid_csrf($_POST['csrf_token'] ?? null);
+
+    $action = (string)$_POST['action'];
+    $channelId = (int)($_POST['id'] ?? 0);
+    $providerId = (int)($_POST['provider_id'] ?? 0);
+    $redirectParams = [];
+    $shouldRedirect = true;
+
+    try {
+        switch ($action) {
+            case 'toggle':
+                $stmt = $pdo->prepare("UPDATE channels SET is_active = NOT is_active WHERE id = ?");
+                $stmt->execute([$channelId]);
+                $redirectParams['success_msg'] = 'Channel status updated.';
+                break;
+
+            case 'delete':
+                $stmt = $pdo->prepare("DELETE FROM channels WHERE id = ?");
+                $stmt->execute([$channelId]);
+                $redirectParams['success_msg'] = 'Channel deleted.';
+                break;
+
+            case 'delete_all':
+                if (!isset($_POST['confirm_delete_all']) || $_POST['confirm_delete_all'] !== '1') {
+                    throw new RuntimeException('Delete-all confirmation is required.');
+                }
+                $wipeAll = wipeAllCatalogData($pdo);
+                $redirectParams['success_msg'] = "Catalog wiped: {$wipeAll['channels']} channels, {$wipeAll['movies']} movies, {$wipeAll['series']} series, {$wipeAll['episodes']} episodes.";
+                break;
+
+            case 'delete_inactive':
+                $stmt = $pdo->prepare("DELETE FROM channels WHERE is_active = false");
+                $stmt->execute();
+                $redirectParams['success_msg'] = 'All inactive channels have been deleted.';
+                break;
+
+            case 'wipe_provider':
+                if (!isset($_POST['confirm_wipe']) || $_POST['confirm_wipe'] !== '1') {
+                    throw new RuntimeException('Provider wipe confirmation is required.');
+                }
+                if ($providerId <= 0) {
+                    throw new RuntimeException('Missing provider id.');
+                }
+                $provider = provider_get_by_id($pdo, $providerId);
+                if (!$provider) {
+                    throw new RuntimeException('Provider not found.');
+                }
+
+                $expectedHost = trim((string)($_POST['expected_host'] ?? ''));
+                if ($expectedHost !== '' && strcasecmp($expectedHost, (string)$provider['host']) !== 0) {
+                    throw new RuntimeException('Provider safety check failed (host mismatch).');
+                }
+
+                $expectedRef = trim((string)($_POST['expected_ref'] ?? ''));
+                if ($expectedRef === '' || !hash_equals(provider_key_fingerprint((string)$provider['provider_key']), $expectedRef)) {
+                    throw new RuntimeException('Provider safety check failed (ref mismatch).');
+                }
+
+                $wipe = wipeProviderData($pdo, $providerId);
+                $providerSafe = provider_safe_summary($provider);
+                $redirectParams['success_msg'] = "Provider data wiped: " . ($providerSafe['name'] ?: ("#{$providerId}")) . ".";
+                import_log("ADMIN WIPE PROVIDER", [
+                    'provider' => $providerSafe,
+                    'deleted' => $wipe['deleted'] ?? []
+                ]);
+                break;
+
+            case 'delete_provider':
+                if (!isset($_POST['confirm_delete']) || $_POST['confirm_delete'] !== '1') {
+                    throw new RuntimeException('Provider delete confirmation is required.');
+                }
+                if ($providerId <= 0) {
+                    throw new RuntimeException('Missing provider id.');
+                }
+
+                $expectedHost = trim((string)($_POST['expected_host'] ?? ''));
+                $expectedRef = trim((string)($_POST['expected_ref'] ?? ''));
+                $summary = deleteProviderFully($pdo, $providerId, [
+                    'expected_host' => $expectedHost,
+                    'expected_ref' => $expectedRef
+                ]);
+
+                $providerName = (string)(provider_safe_summary($summary['provider'])['name'] ?? ("#{$providerId}"));
+                $redirectParams['success_msg'] = "Provider deleted: {$providerName}.";
+                break;
+
+            case 'preview_legacy_wipe':
+                $legacyPreview = legacyCatalogCounts($pdo);
+                $success = 'Legacy preview loaded.';
+                $shouldRedirect = false;
+                break;
+
+            case 'run_legacy_wipe':
+                if (!ENABLE_LEGACY_UNASSIGNED_WIPE) {
+                    throw new RuntimeException('Legacy wipe is disabled by configuration.');
+                }
+                if (!isset($_POST['confirm_legacy_wipe']) || $_POST['confirm_legacy_wipe'] !== '1') {
+                    throw new RuntimeException('Legacy wipe confirmation is required.');
+                }
+                $legacyBefore = legacyCatalogCounts($pdo);
+                $legacyDeleted = wipeLegacyUnassignedCatalog($pdo);
+                $redirectParams['success_msg'] = 'Legacy unassigned catalog wipe completed.';
+                import_log('ADMIN LEGACY WIPE EXECUTED', [
+                    'before' => $legacyBefore,
+                    'deleted' => $legacyDeleted
+                ]);
+                break;
+        }
+    } catch (Throwable $e) {
+        if ($shouldRedirect) {
+            $redirectParams['error_msg'] = $e->getMessage();
+        } else {
+            $error = $e->getMessage();
+        }
     }
-    header('Location: channels.php');
-    exit;
+
+    if ($shouldRedirect) {
+        $qs = http_build_query($redirectParams);
+        header('Location: channels.php' . ($qs ? ('?' . $qs) : ''));
+        exit;
+    }
 }
 
 // Pagination for channels list
@@ -224,6 +380,9 @@ $totalViews = $pdo->query("SELECT SUM(views) FROM channels")->fetchColumn();
 
 // Get categories for export filter
 $categories = $pdo->query("SELECT DISTINCT category FROM channels WHERE category != '' ORDER BY category")->fetchAll();
+
+// Provider overview for cleanup actions
+$providers = provider_list_with_counts($pdo);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -266,13 +425,13 @@ $categories = $pdo->query("SELECT DISTINCT category FROM channels WHERE category
 
         <?php if (isset($success)): ?>
             <div style="background: #d4edda; color: #155724; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
-                <?php echo $success; ?>
+                <?php echo htmlspecialchars((string)$success, ENT_QUOTES, 'UTF-8'); ?>
             </div>
         <?php endif; ?>
 
         <?php if (isset($error)): ?>
             <div style="background: #f8d7da; color: #721c24; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
-                <?php echo $error; ?>
+                <?php echo htmlspecialchars((string)$error, ENT_QUOTES, 'UTF-8'); ?>
             </div>
         <?php endif; ?>
 
@@ -302,6 +461,7 @@ $categories = $pdo->query("SELECT DISTINCT category FROM channels WHERE category
             </div>
             <div class="admin-card-body">
                 <form method="POST" enctype="multipart/form-data">
+                    <?php echo csrf_field(); ?>
                     <div class="form-group">
                         <label class="form-label">Upload M3U File</label>
                         <div class="file-upload">
@@ -331,10 +491,157 @@ $categories = $pdo->query("SELECT DISTINCT category FROM channels WHERE category
                         </small>
                         <div id="providerTestResult" style="display:none; margin-top:10px; padding:10px 12px; border-radius:6px;"></div>
                     </div>
+                    <div class="form-group" style="margin-top: 10px;">
+                        <label style="display:flex; gap:8px; align-items:flex-start; cursor:pointer;">
+                            <input type="checkbox" name="replace_provider_data" value="1" checked>
+                            <span>
+                                Replace existing data for detected provider before import
+                                <small style="display:block; color:#6c757d;">This wipes old channels, movies, series, and episodes for the same provider scope.</small>
+                            </span>
+                        </label>
+                    </div>
+                    <?php if (ENABLE_LEGACY_UNASSIGNED_WIPE): ?>
+                        <div class="form-group" style="margin-top: 10px;">
+                            <label style="display:flex; gap:8px; align-items:flex-start; cursor:pointer;">
+                                <input type="checkbox" name="confirm_legacy_wipe" value="1">
+                                <span>
+                                    Include legacy unassigned cleanup in this import
+                                    <small style="display:block; color:#6c757d;">Use only during one-time migration.</small>
+                                </span>
+                            </label>
+                        </div>
+                    <?php endif; ?>
                     <button type="submit" name="import_m3u" class="btn btn-success">
                         <i class="fas fa-upload"></i> Import Channels
                     </button>
                 </form>
+            </div>
+        </div>
+
+        <div class="admin-card">
+            <div class="admin-card-header">
+                <h4 style="margin: 0;"><i class="fas fa-database"></i> Providers (<?php echo count($providers); ?>)</h4>
+            </div>
+            <div class="admin-card-body">
+                <?php if (empty($providers)): ?>
+                    <p style="margin:0; color:#6c757d;">No providers tracked yet. Import an M3U to create provider records.</p>
+                <?php else: ?>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Provider</th>
+                                <th>Host</th>
+                                <th>Live</th>
+                                <th>Movies</th>
+                                <th>Series</th>
+                                <th>Episodes</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($providers as $provider): ?>
+                                <tr>
+                                    <td>
+                                        <strong><?php echo sanitize($provider['name']); ?></strong>
+                                        <br><small style="color:#7f8c8d; font-family:monospace;">Ref: <?php echo sanitize(provider_key_fingerprint((string)$provider['provider_key'])); ?></small>
+                                    </td>
+                                    <td>
+                                        <?php echo sanitize(provider_public_host((string)($provider['host'] ?: $provider['source_url'])) ?: '-'); ?>
+                                        <br><small style="color:#7f8c8d;"><?php echo sanitize(strtoupper((string)$provider['provider_type'])); ?></small>
+                                    </td>
+                                    <td><?php echo number_format((int)$provider['channels_count']); ?></td>
+                                    <td><?php echo number_format((int)$provider['movies_count']); ?></td>
+                                    <td><?php echo number_format((int)$provider['series_count']); ?></td>
+                                    <td><?php echo number_format((int)$provider['episodes_count']); ?></td>
+                                    <td>
+                                        <div style="display:flex; gap:6px;">
+                                            <form method="POST" style="display:inline;">
+                                                <?php echo csrf_field(); ?>
+                                                <input type="hidden" name="action" value="wipe_provider">
+                                                <input type="hidden" name="provider_id" value="<?php echo (int)$provider['id']; ?>">
+                                                <input type="hidden" name="expected_host" value="<?php echo htmlspecialchars((string)$provider['host'], ENT_QUOTES, 'UTF-8'); ?>">
+                                                <input type="hidden" name="expected_ref" value="<?php echo htmlspecialchars(provider_key_fingerprint((string)$provider['provider_key']), ENT_QUOTES, 'UTF-8'); ?>">
+                                                <input type="hidden" name="confirm_wipe" value="1">
+                                                <button
+                                                    type="submit"
+                                                    class="btn btn-warning"
+                                                    style="padding:5px 10px;"
+                                                    onclick="return confirm('Wipe all catalog data for provider <?php echo addslashes($provider['name']); ?>?')"
+                                                    title="Wipe Provider Data"
+                                                >
+                                                    <i class="fas fa-broom"></i>
+                                                </button>
+                                            </form>
+                                            <form method="POST" style="display:inline;">
+                                                <?php echo csrf_field(); ?>
+                                                <input type="hidden" name="action" value="delete_provider">
+                                                <input type="hidden" name="provider_id" value="<?php echo (int)$provider['id']; ?>">
+                                                <input type="hidden" name="expected_host" value="<?php echo htmlspecialchars((string)$provider['host'], ENT_QUOTES, 'UTF-8'); ?>">
+                                                <input type="hidden" name="expected_ref" value="<?php echo htmlspecialchars(provider_key_fingerprint((string)$provider['provider_key']), ENT_QUOTES, 'UTF-8'); ?>">
+                                                <input type="hidden" name="confirm_delete" value="1">
+                                                <button
+                                                    type="submit"
+                                                    class="btn btn-danger"
+                                                    style="padding:5px 10px;"
+                                                    onclick="return confirm('Delete provider <?php echo addslashes($provider['name']); ?> and all related data?')"
+                                                    title="Delete Provider"
+                                                >
+                                                    <i class="fas fa-trash-alt"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <div class="admin-card">
+            <div class="admin-card-header">
+                <h4 style="margin: 0;"><i class="fas fa-exclamation-triangle"></i> Legacy Catalog Migration</h4>
+            </div>
+            <div class="admin-card-body">
+                <?php if ($legacyPreview !== null): ?>
+                    <div style="margin-bottom: 12px; padding: 10px 12px; border-radius: 6px; background: #fff3cd; color: #856404;">
+                        Legacy unassigned rows:
+                        channels=<?php echo (int)$legacyPreview['channels']; ?>,
+                        movies=<?php echo (int)$legacyPreview['movies']; ?>,
+                        series=<?php echo (int)$legacyPreview['series']; ?>,
+                        episodes=<?php echo (int)$legacyPreview['episodes']; ?>
+                    </div>
+                <?php endif; ?>
+
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <form method="POST" style="display:inline;">
+                        <?php echo csrf_field(); ?>
+                        <input type="hidden" name="action" value="preview_legacy_wipe">
+                        <button type="submit" class="btn btn-secondary">
+                            <i class="fas fa-search"></i> Preview Legacy Rows
+                        </button>
+                    </form>
+
+                    <?php if (ENABLE_LEGACY_UNASSIGNED_WIPE): ?>
+                        <form method="POST" style="display:inline;">
+                            <?php echo csrf_field(); ?>
+                            <input type="hidden" name="action" value="run_legacy_wipe">
+                            <input type="hidden" name="confirm_legacy_wipe" value="1">
+                            <button
+                                type="submit"
+                                class="btn btn-danger"
+                                onclick="return confirm('Run legacy unassigned wipe now? This can remove old untagged catalog rows.')"
+                            >
+                                <i class="fas fa-broom"></i> Run Legacy Wipe
+                            </button>
+                        </form>
+                    <?php else: ?>
+                        <span style="padding:8px 10px; border-radius:6px; background:#f8d7da; color:#721c24;">
+                            Legacy wipe is disabled in config (`ENABLE_LEGACY_UNASSIGNED_WIPE=false`).
+                        </span>
+                    <?php endif; ?>
+                </div>
             </div>
         </div>
 
@@ -364,12 +671,21 @@ $categories = $pdo->query("SELECT DISTINCT category FROM channels WHERE category
                     </a>
                     
                     <!-- Management Buttons -->
-                    <a href="?action=delete_inactive" class="btn btn-warning" onclick="return confirm('Delete all inactive channels?')">
-                        <i class="fas fa-trash"></i> Delete Inactive
-                    </a>
-                    <a href="?action=delete_all" class="btn btn-danger" onclick="return confirm('Delete ALL channels? This cannot be undone!')">
-                        <i class="fas fa-trash-alt"></i> Delete All
-                    </a>
+                    <form method="POST" style="display:inline;">
+                        <?php echo csrf_field(); ?>
+                        <input type="hidden" name="action" value="delete_inactive">
+                        <button type="submit" class="btn btn-warning" onclick="return confirm('Delete all inactive channels?')">
+                            <i class="fas fa-trash"></i> Delete Inactive
+                        </button>
+                    </form>
+                    <form method="POST" style="display:inline;">
+                        <?php echo csrf_field(); ?>
+                        <input type="hidden" name="action" value="delete_all">
+                        <input type="hidden" name="confirm_delete_all" value="1">
+                        <button type="submit" class="btn btn-danger" onclick="return confirm('Delete ALL channels, movies, series, episodes, and providers? This cannot be undone!')">
+                            <i class="fas fa-trash-alt"></i> Delete All
+                        </button>
+                    </form>
                 </div>
             </div>
             <div class="admin-card-body">
@@ -413,7 +729,7 @@ $categories = $pdo->query("SELECT DISTINCT category FROM channels WHERE category
                                 <td><?php echo sanitize($channel['category']); ?></td>
                                 <td>
                                     <small style="font-family: monospace; color: #7f8c8d;">
-                                        <?php echo substr(sanitize($channel['stream_url']), 0, 50); ?>...
+                                        <?php echo sanitize(redact_provider_secret((string)$channel['stream_url'])); ?>
                                     </small>
                                 </td>
                                 <td>
@@ -433,19 +749,33 @@ $categories = $pdo->query("SELECT DISTINCT category FROM channels WHERE category
                                 </td>
                                 <td>
                                     <div style="display: flex; gap: 5px;">
-                                        <a href="?action=toggle&id=<?php echo $channel['id']; ?>" 
-                                           class="btn <?php echo $channel['is_active'] ? 'btn-warning' : 'btn-success'; ?>" 
-                                           style="padding: 5px 10px;"
-                                           title="<?php echo $channel['is_active'] ? 'Deactivate' : 'Activate'; ?>">
-                                            <i class="fas fa-power-off"></i>
-                                        </a>
-                                        <a href="?action=delete&id=<?php echo $channel['id']; ?>" 
-                                           class="btn btn-danger" 
-                                           style="padding: 5px 10px;" 
-                                           onclick="return confirm('Delete channel: <?php echo addslashes($channel['name']); ?>?')"
-                                           title="Delete Channel">
-                                            <i class="fas fa-trash"></i>
-                                        </a>
+                                        <form method="POST" style="display:inline;">
+                                            <?php echo csrf_field(); ?>
+                                            <input type="hidden" name="action" value="toggle">
+                                            <input type="hidden" name="id" value="<?php echo (int)$channel['id']; ?>">
+                                            <button
+                                                type="submit"
+                                                class="btn <?php echo $channel['is_active'] ? 'btn-warning' : 'btn-success'; ?>"
+                                                style="padding: 5px 10px;"
+                                                title="<?php echo $channel['is_active'] ? 'Deactivate' : 'Activate'; ?>"
+                                            >
+                                                <i class="fas fa-power-off"></i>
+                                            </button>
+                                        </form>
+                                        <form method="POST" style="display:inline;">
+                                            <?php echo csrf_field(); ?>
+                                            <input type="hidden" name="action" value="delete">
+                                            <input type="hidden" name="id" value="<?php echo (int)$channel['id']; ?>">
+                                            <button
+                                                type="submit"
+                                                class="btn btn-danger"
+                                                style="padding: 5px 10px;"
+                                                onclick="return confirm('Delete channel: <?php echo addslashes($channel['name']); ?>?')"
+                                                title="Delete Channel"
+                                            >
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
                                     </div>
                                 </td>
                             </tr>
@@ -467,6 +797,7 @@ $categories = $pdo->query("SELECT DISTINCT category FROM channels WHERE category
     </div>
 
     <script>
+        const csrfToken = <?php echo json_encode(get_csrf_token(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
         const fileInput = document.getElementById('m3uFileInput');
         const providerUrlInput = document.getElementById('providerTestUrl');
         const providerBtn = document.getElementById('testProviderBtn');
@@ -514,6 +845,7 @@ $categories = $pdo->query("SELECT DISTINCT category FROM channels WHERE category
             try {
                 const params = new URLSearchParams();
                 params.set('url', streamUrl);
+                params.set('csrf_token', csrfToken);
 
                 const response = await fetch('test_provider.php', {
                     method: 'POST',

@@ -30,15 +30,65 @@ if (!function_exists('provider_status_message')) {
     }
 }
 
+if (!function_exists('provider_validator_redact_context')) {
+    function provider_validator_redact_context(array $context): array
+    {
+        if (function_exists('provider_redact_context')) {
+            $safe = provider_redact_context($context);
+            return is_array($safe) ? $safe : $context;
+        }
+
+        array_walk_recursive($context, static function (&$value, $key): void {
+            if (!is_string($value)) {
+                return;
+            }
+            $isSensitiveKey = is_string($key) && (bool)preg_match('/(pass|password|username|user|token|secret|provider_key|source_url|stream_url|url|effective_url)/i', $key);
+            if ($isSensitiveKey || strpos($value, '://') !== false) {
+                if (function_exists('redact_provider_secret')) {
+                    $value = redact_provider_secret($value);
+                } else {
+                    $value = '****';
+                }
+            }
+        });
+
+        return $context;
+    }
+}
+
+if (!function_exists('provider_mask_url')) {
+    function provider_mask_url(string $url): string
+    {
+        if (!is_string($url) || trim($url) === '') {
+            return '';
+        }
+
+        if (function_exists('redact_provider_secret')) {
+            return redact_provider_secret($url);
+        }
+
+        $parts = parse_url($url);
+        if (!$parts || empty($parts['host'])) {
+            return '****';
+        }
+        $scheme = strtolower((string)($parts['scheme'] ?? 'http'));
+        $host = strtolower((string)$parts['host']);
+        $port = isset($parts['port']) ? ':' . (int)$parts['port'] : '';
+        return "{$scheme}://{$host}{$port}/****";
+    }
+}
+
 if (!function_exists('provider_log_event')) {
     function provider_log_event(string $message, array $context = []): void
     {
+        $safeContext = provider_validator_redact_context($context);
+
         if (function_exists('import_log')) {
-            import_log($message, $context);
+            import_log($message, $safeContext);
             return;
         }
 
-        error_log($message . ' ' . json_encode($context, JSON_UNESCAPED_SLASHES));
+        error_log($message . ' ' . json_encode($safeContext, JSON_UNESCAPED_SLASHES));
     }
 }
 
@@ -172,13 +222,14 @@ if (!function_exists('provider_validate_url')) {
     function provider_validate_url(string $url, array $options = []): array
     {
         $url = trim($url);
+        $maskedUrl = provider_mask_url($url);
 
         if (!provider_is_valid_stream_url($url)) {
             return [
                 'ok' => false,
                 'status' => 400,
                 'message' => 'Invalid URL. Use a full http/https stream URL.',
-                'url' => $url,
+                'url' => $maskedUrl,
                 'sample' => '',
                 'content_type' => '',
                 'effective_url' => ''
@@ -197,10 +248,10 @@ if (!function_exists('provider_validate_url')) {
                 'ok' => false,
                 'status' => $status,
                 'message' => provider_status_message($status),
-                'url' => $url,
+                'url' => $maskedUrl,
                 'sample' => '',
                 'content_type' => '',
-                'effective_url' => (string)($get['effective_url'] ?: $head['effective_url']),
+                'effective_url' => provider_mask_url((string)($get['effective_url'] ?: $head['effective_url'])),
                 'curl_error' => $curlErr
             ];
         }
@@ -220,14 +271,19 @@ if (!function_exists('provider_validate_url')) {
             $message = 'Unauthorized - provider rejected credentials';
         }
 
+        $sample = provider_extract_sample($get['body']);
+        if (function_exists('redact_provider_secret')) {
+            $sample = redact_provider_secret($sample);
+        }
+
         return [
             'ok' => $ok,
             'status' => $status,
             'message' => $message,
-            'url' => $url,
-            'sample' => provider_extract_sample($get['body']),
+            'url' => $maskedUrl,
+            'sample' => $sample,
             'content_type' => (string)$get['content_type'],
-            'effective_url' => (string)($get['effective_url'] ?: $head['effective_url']),
+            'effective_url' => provider_mask_url((string)($get['effective_url'] ?: $head['effective_url'])),
             'payload_error' => $payloadError
         ];
     }
@@ -361,4 +417,3 @@ if (!function_exists('provider_precheck_entries')) {
         ];
     }
 }
-
